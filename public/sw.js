@@ -1,37 +1,107 @@
-const CACHE_NAME = 'lot-logger-v1';
+const CACHE = 'lotlogger-v2';
 const urlsToCache = [
   '/',
-  '/manifest.json'
+  '/manifest.json',
+  '/offline',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
-// Install event - cache resources
+// Install event - cache app shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(CACHE)
       .then((cache) => {
         return cache.addAll(urlsToCache);
+      })
+      .then(() => {
+        self.skipWaiting();
       })
   );
 });
 
-// Fetch event - network first with cache fallback
+// Activate event - clean up old caches
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => {
+      self.clients.claim();
+    })
+  );
+});
+
+// Fetch event - smart caching strategy
 self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  // Navigation requests (page loads)
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .catch(() => {
+          return caches.match('/');
+        })
+        .catch(() => {
+          return caches.match('/offline');
+        })
+    );
+    return;
+  }
+
+  // Same-origin static assets - stale-while-revalidate
+  if (url.origin === location.origin && 
+      (url.pathname.startsWith('/_next/static/') || 
+       url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2)$/))) {
+    event.respondWith(
+      caches.match(request)
+        .then((cachedResponse) => {
+          const fetchPromise = fetch(request)
+            .then((networkResponse) => {
+              if (networkResponse.ok) {
+                const responseClone = networkResponse.clone();
+                caches.open(CACHE)
+                  .then((cache) => {
+                    cache.put(request, responseClone);
+                  });
+              }
+              return networkResponse;
+            });
+          
+          return cachedResponse || fetchPromise;
+        })
+    );
+    return;
+  }
+
+  // Other GET requests - network first with cache fallback
   event.respondWith(
-    fetch(event.request)
+    fetch(request)
       .then((response) => {
-        // If we got a response, clone it and cache it
-        if (response.status === 200) {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME)
+        if (response.ok) {
+          const responseClone = response.clone();
+          caches.open(CACHE)
             .then((cache) => {
-              cache.put(event.request, responseToCache);
+              cache.put(request, responseClone);
             });
         }
         return response;
       })
       .catch(() => {
-        // If network fails, try to get from cache
-        return caches.match(event.request);
+        return caches.match(request);
       })
   );
 });
+
