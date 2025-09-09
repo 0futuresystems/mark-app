@@ -6,15 +6,16 @@ import { uid } from '../../src/lib/id';
 import { nextLotNumber } from '../../src/lib/lotNumber';
 import { downscaleImage } from '../../src/lib/files';
 import { saveMediaBlob } from '../../src/lib/blobStore';
-import { ensureMicAccess } from '../../src/lib/permissions';
 import { db } from '../../src/db';
-import { Lot, MediaItem, MediaType } from '../../src/types';
+import { Lot, MediaItem } from '../../src/types';
 import CameraCapture from '../../src/components/CameraCapture';
 import AudioRecorder from '../../src/components/AudioRecorder';
+import AuctionSelector from '../../src/components/AuctionSelector';
 import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function NewLotPage() {
   const router = useRouter();
+  const [currentAuctionId, setCurrentAuctionId] = useState<string | null>(null);
   const [lot, setLot] = useState<Lot | null>(null);
   const [photos, setPhotos] = useState<MediaItem[]>([]);
   const [mainVoice, setMainVoice] = useState<MediaItem | null>(null);
@@ -23,11 +24,17 @@ export default function NewLotPage() {
 
   useEffect(() => {
     const createNewLot = async () => {
+      if (!currentAuctionId) {
+        setLoading(false);
+        return;
+      }
+      
       try {
-        const lotNumber = await nextLotNumber();
+        const lotNumber = await nextLotNumber(currentAuctionId);
         const newLot: Lot = {
           id: uid(),
           number: lotNumber,
+          auctionId: currentAuctionId,
           status: 'draft',
           createdAt: new Date()
         };
@@ -42,7 +49,7 @@ export default function NewLotPage() {
     };
 
     createNewLot();
-  }, []);
+  }, [currentAuctionId]);
 
   const handlePhotos = async (files: File[]) => {
     if (!lot) return;
@@ -165,10 +172,16 @@ export default function NewLotPage() {
     
     // Create next lot and update the current page state
     try {
-      const nextLotNumberValue = await nextLotNumber();
+      if (!currentAuctionId) {
+        alert('No auction selected. Please select an auction first.');
+        return;
+      }
+      
+      const nextLotNumberValue = await nextLotNumber(currentAuctionId);
       const newLot: Lot = {
         id: uid(),
         number: nextLotNumberValue,
+        auctionId: currentAuctionId,
         status: 'draft',
         createdAt: new Date()
       };
@@ -229,6 +242,10 @@ export default function NewLotPage() {
               <p className="text-gray-600 mt-1">Complete the required steps to finish your lot</p>
             </div>
           </div>
+          <AuctionSelector 
+            currentAuctionId={currentAuctionId}
+            onAuctionChange={setCurrentAuctionId}
+          />
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

@@ -1,11 +1,12 @@
 import Dexie, { Table } from 'dexie';
-import { Lot, MediaItem, MediaBlob } from './types';
+import { Auction, Lot, MediaItem, MediaBlob } from './types';
 
 export class LotLoggerDB extends Dexie {
+  auctions!: Table<Auction>;
   lots!: Table<Lot>;
   media!: Table<MediaItem>;
   blobs!: Table<MediaBlob>;
-  meta!: Table<{ key: string; value: any }>;
+  meta!: Table<{ key: string; value: unknown }>;
 
   constructor() {
     super('LotLoggerDB');
@@ -14,6 +15,29 @@ export class LotLoggerDB extends Dexie {
       media: 'id, lotId, type, index, createdAt, uploaded, remotePath',
       blobs: 'id',
       meta: 'key'
+    });
+    
+    this.version(2).stores({
+      auctions: 'id, name, createdAt',
+      lots: 'id, number, auctionId, status, createdAt',
+      media: 'id, lotId, type, index, createdAt, uploaded, remotePath',
+      blobs: 'id',
+      meta: 'key'
+    }).upgrade(async (tx) => {
+      // Migration: Add default auction and assign existing lots to it
+      const defaultAuction: Auction = {
+        id: 'default-auction',
+        name: 'Default Auction',
+        createdAt: Date.now()
+      };
+      
+      await tx.table('auctions').add(defaultAuction);
+      
+      // Assign all existing lots to the default auction
+      const existingLots = await tx.table('lots').toArray();
+      for (const lot of existingLots) {
+        await tx.table('lots').update(lot.id, { auctionId: 'default-auction' });
+      }
     });
   }
 }

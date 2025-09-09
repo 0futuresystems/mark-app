@@ -1,7 +1,43 @@
+'use client';
+
 import Link from "next/link";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Eye, Send } from "lucide-react";
+import { db } from "../src/db";
+import { Lot } from "../src/types";
+import AuctionSelector from "../src/components/AuctionSelector";
 
 export default function Home() {
+  const [currentAuctionId, setCurrentAuctionId] = useState<string | null>(null);
+  const [lots, setLots] = useState<Lot[]>([]);
+
+  const loadLots = useCallback(async () => {
+    try {
+      let allLots;
+      if (currentAuctionId) {
+        allLots = await db.lots.where('auctionId').equals(currentAuctionId).toArray();
+      } else {
+        allLots = await db.lots.toArray();
+      }
+      setLots(allLots);
+    } catch (error) {
+      console.error('Error loading lots:', error);
+    }
+  }, [currentAuctionId]);
+
+  useEffect(() => {
+    loadLots();
+  }, [loadLots]);
+
+  const getLotCounts = () => {
+    const total = lots.length;
+    const draft = lots.filter(lot => lot.status === 'draft').length;
+    const complete = lots.filter(lot => lot.status === 'complete').length;
+    const sent = lots.filter(lot => lot.status === 'sent').length;
+    return { total, draft, complete, sent };
+  };
+
+  const counts = getLotCounts();
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
       <div className="max-w-4xl mx-auto">
@@ -11,9 +47,10 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-gray-900">Lot Logger</h1>
             <p className="text-gray-600 mt-1">Track and manage your lots</p>
           </div>
-          <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-            <span className="text-white font-semibold text-lg">M</span>
-          </div>
+          <AuctionSelector 
+            currentAuctionId={currentAuctionId}
+            onAuctionChange={setCurrentAuctionId}
+          />
         </div>
 
         {/* Main Actions Grid */}
@@ -63,19 +100,19 @@ export default function Home() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Overview</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">0</div>
+              <div className="text-2xl font-bold text-gray-900">{counts.total}</div>
               <div className="text-sm text-gray-600">Total Lots</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">0</div>
+              <div className="text-2xl font-bold text-gray-900">{counts.draft}</div>
               <div className="text-sm text-gray-600">Draft</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">0</div>
+              <div className="text-2xl font-bold text-gray-900">{counts.complete}</div>
               <div className="text-sm text-gray-600">Complete</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">0</div>
+              <div className="text-2xl font-bold text-gray-900">{counts.sent}</div>
               <div className="text-sm text-gray-600">Sent</div>
             </div>
           </div>

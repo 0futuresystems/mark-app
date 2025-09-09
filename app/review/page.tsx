@@ -1,39 +1,46 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { db } from '../../src/db';
-import { Lot, MediaItem, MediaType } from '../../src/types';
+import { Lot, MediaItem } from '../../src/types';
 import { uid } from '../../src/lib/id';
 import { saveMediaBlob, deleteMediaBlob } from '../../src/lib/blobStore';
-import { getMediaBlob } from '../../src/lib/blobStore';
 import AudioRecorder from '../../src/components/AudioRecorder';
+import AuctionSelector from '../../src/components/AuctionSelector';
 
 export default function ReviewPage() {
+  const [currentAuctionId, setCurrentAuctionId] = useState<string | null>(null);
   const [lots, setLots] = useState<Lot[]>([]);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
   const [lotMedia, setLotMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadLots();
-  }, []);
-
-  useEffect(() => {
-    if (selectedLot) {
-      loadLotMedia(selectedLot.id);
-    }
-  }, [selectedLot]);
-
-  const loadLots = async () => {
+  const loadLots = useCallback(async () => {
     try {
-      const allLots = await db.lots.orderBy('createdAt').reverse().toArray();
+      let allLots;
+      if (currentAuctionId) {
+        allLots = await db.lots.where('auctionId').equals(currentAuctionId).toArray();
+        allLots.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      } else {
+        allLots = await db.lots.orderBy('createdAt').reverse().toArray();
+      }
       setLots(allLots);
       setLoading(false);
     } catch (error) {
       console.error('Error loading lots:', error);
       setLoading(false);
     }
-  };
+  }, [currentAuctionId]);
+
+  useEffect(() => {
+    loadLots();
+  }, [loadLots]);
+
+  useEffect(() => {
+    if (selectedLot) {
+      loadLotMedia(selectedLot.id);
+    }
+  }, [selectedLot]);
 
   const loadLotMedia = async (lotId: string) => {
     try {
@@ -44,13 +51,6 @@ export default function ReviewPage() {
     }
   };
 
-  const getPhotoCount = (lotId: string) => {
-    return lotMedia.filter(m => m.lotId === lotId && m.type === 'photo').length;
-  };
-
-  const hasMainVoice = (lotId: string) => {
-    return lotMedia.some(m => m.lotId === lotId && m.type === 'mainVoice');
-  };
 
   const getFirstPhoto = (lotId: string) => {
     const photos = lotMedia.filter(m => m.lotId === lotId && m.type === 'photo');
@@ -241,7 +241,13 @@ export default function ReviewPage() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>Review Data</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Review Data</h1>
+        <AuctionSelector 
+          currentAuctionId={currentAuctionId}
+          onAuctionChange={setCurrentAuctionId}
+        />
+      </div>
       
       {!selectedLot ? (
         <div>
@@ -251,8 +257,6 @@ export default function ReviewPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {lots.map(lot => {
-                const photoCount = getPhotoCount(lot.id);
-                const hasVoice = hasMainVoice(lot.id);
                 const firstPhoto = getFirstPhoto(lot.id);
                 
                 return (
