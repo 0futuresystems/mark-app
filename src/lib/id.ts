@@ -1,10 +1,11 @@
 // src/lib/id.ts
 // Robust UUID v4 with fallbacks for older iOS / non-secure contexts
+
 export const uid = (): string => {
   // 1) Modern browsers (and Node on server)
   try {
-    if (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function') {
-      return (crypto as any).randomUUID();
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
     }
   } catch { /* ignore */ }
 

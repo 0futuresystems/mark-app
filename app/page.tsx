@@ -1,56 +1,87 @@
 'use client';
 
 import Link from "next/link";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Eye, Send } from "lucide-react";
-import { db } from "../src/db";
-import { Lot } from "../src/types";
-import AuctionSelector from "../src/components/AuctionSelector";
+import { getCurrentAuction } from "../src/lib/currentAuction";
+import { Auction } from "../src/types";
+import QuickOverview from "../src/components/QuickOverview";
+import { useAuctionStats } from "../src/hooks/useAuctionStats";
 
 export default function Home() {
-  const [currentAuctionId, setCurrentAuctionId] = useState<string | null>(null);
-  const [lots, setLots] = useState<Lot[]>([]);
-
-  const loadLots = useCallback(async () => {
-    try {
-      let allLots;
-      if (currentAuctionId) {
-        allLots = await db.lots.where('auctionId').equals(currentAuctionId).toArray();
-      } else {
-        allLots = await db.lots.toArray();
-      }
-      setLots(allLots);
-    } catch (error) {
-      console.error('Error loading lots:', error);
-    }
-  }, [currentAuctionId]);
+  const router = useRouter();
+  const [currentAuction, setCurrentAuction] = useState<Auction | null>(null);
+  const [loading, setLoading] = useState(true);
+  const auctionStats = useAuctionStats(currentAuction?.id || null);
 
   useEffect(() => {
-    loadLots();
-  }, [loadLots]);
+    const loadCurrentAuction = async () => {
+      try {
+        const auction = await getCurrentAuction();
+        setCurrentAuction(auction);
+        
+        // If no current auction, redirect to auctions page
+        if (!auction) {
+          router.push('/auctions');
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading current auction:', error);
+        router.push('/auctions');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const getLotCounts = () => {
-    const total = lots.length;
-    const draft = lots.filter(lot => lot.status === 'draft').length;
-    const complete = lots.filter(lot => lot.status === 'complete').length;
-    const sent = lots.filter(lot => lot.status === 'sent').length;
-    return { total, draft, complete, sent };
-  };
+    loadCurrentAuction();
+  }, [router]);
 
-  const counts = getLotCounts();
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h1 className="text-2xl font-semibold text-gray-900">Loading...</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentAuction) {
+    return null; // Will redirect to auctions page
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Lot Logger</h1>
-            <p className="text-gray-600 mt-1">Track and manage your lots</p>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Lot Logger</h1>
+          <p className="text-gray-600 mt-1">Track and manage your lots</p>
+        </div>
+
+        {/* Current Auction Card */}
+        <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-blue-600 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                <h2 className="text-lg font-semibold text-gray-900 truncate">
+                  Current auction: {currentAuction.name}
+                </h2>
+              </div>
+              <p className="text-sm text-gray-600">
+                {auctionStats.total} total lots ({auctionStats.draft} draft, {auctionStats.complete} complete, {auctionStats.sent} sent)
+              </p>
+            </div>
+            <Link 
+              href="/auctions" 
+              className="flex-shrink-0 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-gray-50 rounded-lg transition-colors"
+            >
+              Change
+            </Link>
           </div>
-          <AuctionSelector 
-            currentAuctionId={currentAuctionId}
-            onAuctionChange={setCurrentAuctionId}
-          />
         </div>
 
         {/* Main Actions Grid */}
@@ -61,7 +92,7 @@ export default function Home() {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">New Entry</h3>
-              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Plus className="w-4 h-4 text-white" />
               </div>
             </div>
@@ -74,8 +105,8 @@ export default function Home() {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Review Data</h3>
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Eye className="w-4 h-4 text-gray-600" />
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <Eye className="w-4 h-4 text-white" />
               </div>
             </div>
             <p className="text-gray-600 text-sm">Review and manage your existing lot entries</p>
@@ -87,8 +118,8 @@ export default function Home() {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Send Data</h3>
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                <Send className="w-4 h-4 text-gray-600" />
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <Send className="w-4 h-4 text-white" />
               </div>
             </div>
             <p className="text-gray-600 text-sm">Upload and send your lot data</p>
@@ -96,27 +127,7 @@ export default function Home() {
         </div>
 
         {/* Quick Stats */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Overview</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{counts.total}</div>
-              <div className="text-sm text-gray-600">Total Lots</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{counts.draft}</div>
-              <div className="text-sm text-gray-600">Draft</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{counts.complete}</div>
-              <div className="text-sm text-gray-600">Complete</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{counts.sent}</div>
-              <div className="text-sm text-gray-600">Sent</div>
-            </div>
-          </div>
-        </div>
+        <QuickOverview currentAuctionId={currentAuction.id} />
       </div>
     </div>
   );

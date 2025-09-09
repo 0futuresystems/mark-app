@@ -49,8 +49,8 @@ export default function AudioPlayer({ mediaItem }: AudioPlayerProps) {
 
   if (!audioUrl) {
     return (
-      <div className="flex items-center space-x-2 p-3 bg-red-50 rounded-lg">
-        <span className="text-red-600 text-sm">Error loading audio</span>
+      <div className="flex items-center space-x-2 p-3 bg-rose-50 rounded-lg">
+        <span className="text-rose-600 text-sm">Error loading audio</span>
       </div>
     );
   }
@@ -59,7 +59,7 @@ export default function AudioPlayer({ mediaItem }: AudioPlayerProps) {
     <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
       <button
         onClick={() => setPlaying(!playing)}
-        className="flex items-center justify-center w-8 h-8 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
+        className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
       >
         {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
       </button>

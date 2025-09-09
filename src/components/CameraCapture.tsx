@@ -27,7 +27,7 @@ export default function CameraCapture({ onFiles }: CameraCaptureProps) {
       {/* Multi-shot (HTTPS only) */}
       {canMulti && (
         <button 
-          className="w-full py-3 px-4 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 transition-colors flex items-center justify-center space-x-2" 
+          className="w-full py-3 px-4 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2" 
           onClick={() => setShowCam(true)}
         >
           <Camera className="w-5 h-5" />
@@ -52,9 +52,6 @@ export default function CameraCapture({ onFiles }: CameraCaptureProps) {
         <span>Choose from Library</span>
       </button>
 
-      <p className="text-sm text-gray-600 text-center">
-        {canMulti ? 'Use camera for quick photos or choose from your library.' : 'Choose multiple photos from your library.'}
-      </p>
 
       {showCam && (
         <MultiShotCamera

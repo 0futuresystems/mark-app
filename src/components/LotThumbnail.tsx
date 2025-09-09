@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { MediaItem } from '../types';
 import { getMediaBlob } from '../lib/blobStore';
 
@@ -61,10 +62,13 @@ export default function LotThumbnail({ mediaItem, size = 'medium', className = '
   }
 
   return (
-    <img
+    <Image
       src={imageUrl}
       alt={`Photo ${mediaItem.index}`}
+      width={size === 'small' ? 32 : size === 'medium' ? 64 : 160}
+      height={size === 'small' ? 32 : size === 'medium' ? 64 : 160}
       className={`${sizeClasses[size]} object-cover rounded-lg ${className}`}
+      unoptimized
     />
   );
 }

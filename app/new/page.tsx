@@ -10,7 +10,8 @@ import { db } from '../../src/db';
 import { Lot, MediaItem } from '../../src/types';
 import CameraCapture from '../../src/components/CameraCapture';
 import AudioRecorder from '../../src/components/AudioRecorder';
-import AuctionSelector from '../../src/components/AuctionSelector';
+import Toast from '../../src/components/Toast';
+import { getCurrentAuction } from '../../src/lib/currentAuction';
 import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function NewLotPage() {
@@ -20,6 +21,8 @@ export default function NewLotPage() {
   const [photos, setPhotos] = useState<MediaItem[]>([]);
   const [mainVoice, setMainVoice] = useState<MediaItem | null>(null);
   const [dimensionsVoice, setDimensionsVoice] = useState<MediaItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Cleanup function to delete incomplete lot and its media
   const cleanupIncompleteLot = async (lotToCleanup: Lot) => {
@@ -62,6 +65,27 @@ export default function NewLotPage() {
       return null;
     }
   };
+
+  // Load current auction on mount
+  useEffect(() => {
+    const loadCurrentAuction = async () => {
+      try {
+        const auction = await getCurrentAuction();
+        if (!auction) {
+          router.push('/auctions');
+          return;
+        }
+        setCurrentAuctionId(auction.id);
+      } catch (error) {
+        console.error('Error loading current auction:', error);
+        router.push('/auctions');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCurrentAuction();
+  }, [router]);
 
   // Handle page exit/back with cleanup
   useEffect(() => {
@@ -203,24 +227,54 @@ export default function NewLotPage() {
       return;
     }
     
-    // Mark current lot as complete
-    if (lot) {
-      await db.lots.update(lot.id, { status: 'complete' });
-      console.log('Marked lot as complete:', lot.id, lot.number);
+    try {
+      // Mark current lot as complete
+      if (lot) {
+        await db.lots.update(lot.id, { status: 'complete' });
+        console.log('Marked lot as complete:', lot.id, lot.number);
+        
+        // Show success toast
+        setToast({ message: `Lot #${lot.number} saved`, type: 'success' });
+        
+        // Provide haptic feedback
+        if (navigator.vibrate) {
+          navigator.vibrate(30);
+        }
+        
+        // Wait a moment to ensure all operations complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Reset state for next lot (but don't create it yet)
+      setLot(null);
+      setPhotos([]);
+      setMainVoice(null);
+      setDimensionsVoice(null);
+      
+      // Scroll to top to show the fresh state
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      console.log('Ready for next lot - will be created when first media is added');
+    } catch (error) {
+      console.error('Error finishing lot:', error);
+      setToast({ message: 'Failed to save lot. Please try again.', type: 'error' });
     }
-    
-    // Reset state for next lot (but don't create it yet)
-    setLot(null);
-    setPhotos([]);
-    setMainVoice(null);
-    setDimensionsVoice(null);
-    
-    console.log('Ready for next lot - will be created when first media is added');
   };
 
   // Check if we can finish the current lot
   const canFinish = photos.length >= 1 && mainVoice !== null;
   const currentLotNumber = lot ? lot.number : 'New';
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h1 className="text-2xl font-semibold text-gray-900">Loading...</h1>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -241,10 +295,6 @@ export default function NewLotPage() {
               </p>
             </div>
           </div>
-          <AuctionSelector 
-            currentAuctionId={currentAuctionId}
-            onAuctionChange={setCurrentAuctionId}
-          />
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -252,14 +302,13 @@ export default function NewLotPage() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Photos</h2>
-              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Camera className="w-4 h-4 text-white" />
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4">Take at least 1 photo of the lot (2-5 recommended)</p>
             
             <div className="mb-4">
-              <CameraCapture onFiles={handlePhotos} />
+              <CameraCapture key={`photos-${lot?.id || 'new'}`} onFiles={handlePhotos} />
             </div>
             
             <div className="flex items-center justify-between">
@@ -267,12 +316,12 @@ export default function NewLotPage() {
                 Captured: {photos.length} photo{photos.length !== 1 ? 's' : ''}
               </span>
               {photos.length >= 1 ? (
-                <div className="flex items-center space-x-1 text-green-600">
+                <div className="flex items-center space-x-1 text-emerald-600">
                   <CheckCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Required ✓</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1 text-red-600">
+                <div className="flex items-center space-x-1 text-gray-600">
                   <AlertCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Need at least 1 photo</span>
                 </div>
@@ -284,25 +333,24 @@ export default function NewLotPage() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Main Voice Note</h2>
-              <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Mic className="w-4 h-4 text-white" />
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4">Record a voice note describing the lot (required)</p>
             
             <div className="mb-4">
-              <AudioRecorder onBlob={handleMainVoice} />
+              <AudioRecorder key={`main-voice-${lot?.id || 'new'}`} onBlob={handleMainVoice} />
             </div>
             
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Status</span>
               {mainVoice ? (
-                <div className="flex items-center space-x-1 text-green-600">
+                <div className="flex items-center space-x-1 text-emerald-600">
                   <CheckCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Required ✓</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1 text-red-600">
+                <div className="flex items-center space-x-1 text-gray-600">
                   <AlertCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Voice note required</span>
                 </div>
@@ -314,20 +362,19 @@ export default function NewLotPage() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Dimensions Voice Note</h2>
-              <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Mic className="w-4 h-4 text-white" />
               </div>
             </div>
-            <p className="text-gray-600 text-sm mb-4">Record a voice note describing the dimensions of the lot (optional)</p>
             
             <div className="mb-4">
-              <AudioRecorder onBlob={handleDimensionsVoice} />
+              <AudioRecorder key={`dimensions-voice-${lot?.id || 'new'}`} onBlob={handleDimensionsVoice} />
             </div>
             
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Status</span>
               {dimensionsVoice ? (
-                <div className="flex items-center space-x-1 text-green-600">
+                <div className="flex items-center space-x-1 text-emerald-600">
                   <CheckCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Optional ✓</span>
                 </div>
@@ -343,20 +390,11 @@ export default function NewLotPage() {
 
         {/* Finish Button */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <div className="mb-4">
-            <p className="text-sm text-gray-600 text-center">
-              {canFinish ? (
-                <span className="text-green-600 font-medium">✓ Ready to finish - you have 1 photo + 1 voice note</span>
-              ) : (
-                <span className="text-red-600">Need 1 photo + 1 main voice note to finish</span>
-              )}
-            </p>
-          </div>
           <button
             onClick={handleFinishLot}
             className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-200 ${
               canFinish
-                ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm hover:shadow-md'
+                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
             disabled={!canFinish}
@@ -371,6 +409,15 @@ export default function NewLotPage() {
             )}
           </button>
         </div>
+        
+        {/* Toast */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
       </div>
     </div>
   );

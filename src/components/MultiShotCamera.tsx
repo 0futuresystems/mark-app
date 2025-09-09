@@ -1,6 +1,12 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+
+// Type for experimental requestVideoFrameCallback (not yet in all browsers)
+interface VideoFrameCallbackElement {
+  requestVideoFrameCallback?: (callback: () => void) => void;
+}
 
 type Props = {
   onDone: (files: File[]) => void;
@@ -40,8 +46,8 @@ export default function MultiShotCamera({
         await once(v, 'loadedmetadata');
         try { await v.play(); } catch { /* iOS may delay play, fallback below */ }
         await waitForFrame(v);
-      } catch (e: any) {
-        setError(e?.message || 'Unable to access camera. Allow Camera in iOS Settings > Safari > Camera.');
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Unable to access camera. Allow Camera in iOS Settings > Safari > Camera.');
       }
     })();
 
@@ -69,17 +75,18 @@ export default function MultiShotCamera({
 
   function once(el: HTMLVideoElement, ev: keyof HTMLVideoElementEventMap) {
     return new Promise<void>(res => {
-      const handler = () => { el.removeEventListener(ev, handler as any); res(); };
-      el.addEventListener(ev, handler as any, { once: true });
+      const handler = () => { el.removeEventListener(ev, handler); res(); };
+      el.addEventListener(ev, handler, { once: true });
     });
   }
 
   async function waitForFrame(v: HTMLVideoElement) {
-    if ((v as any).requestVideoFrameCallback) {
-      await new Promise<void>(res => (v as any).requestVideoFrameCallback(() => res()));
+    const extendedV = v as HTMLVideoElement & VideoFrameCallbackElement;
+    if (extendedV.requestVideoFrameCallback) {
+      await new Promise<void>(res => extendedV.requestVideoFrameCallback!(() => res()));
     } else {
       // fallback – give iOS time to produce a frame
-      await new Promise(res => setTimeout(res, 120));
+      await new Promise<void>(res => setTimeout(res, 120));
     }
   }
 

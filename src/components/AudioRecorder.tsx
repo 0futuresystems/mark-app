@@ -13,7 +13,6 @@ type RecorderState = 'idle' | 'recording' | 'ready';
 export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
   const [state, setState] = useState<RecorderState>('idle');
   const [lastRecording, setLastRecording] = useState<string | null>(null);
-  const [lastFile, setLastFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   
@@ -89,7 +88,6 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
         });
         
         setLastRecording(URL.createObjectURL(blob));
-        setLastFile(file);
         setState('ready');
         onBlob(file);
         
@@ -130,7 +128,6 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
     if (lastRecording) {
       URL.revokeObjectURL(lastRecording);
       setLastRecording(null);
-      setLastFile(null);
       setState('idle');
     }
   }, [lastRecording]);
@@ -150,7 +147,7 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
         {state === 'idle' && (
           <button 
             onClick={startRecording} 
-            className="w-full py-3 px-4 bg-green-500 text-white rounded-xl font-medium hover:bg-green-600 transition-colors flex items-center justify-center space-x-2"
+            className="w-full py-3 px-4 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-2"
           >
             <Mic className="w-5 h-5" />
             <span>Start Recording</span>
@@ -161,13 +158,13 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
           <div className="flex items-center space-x-4">
             <button 
               onClick={stopRecording} 
-              className="py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors flex items-center justify-center space-x-2"
+              className="py-3 px-4 bg-rose-600 text-white rounded-xl font-medium hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2"
             >
               <Square className="w-5 h-5" />
               <span>Stop Recording</span>
             </button>
             <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+              <div className="w-3 h-3 bg-rose-600 rounded-full animate-pulse"></div>
               <span className="text-lg font-medium text-gray-900">
                 {formatTime(recordingTime)}
               </span>
@@ -179,7 +176,7 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
           <div className="flex space-x-3">
             <button 
               onClick={startRecording} 
-              className="flex-1 py-3 px-4 bg-green-500 text-white rounded-xl font-medium hover:bg-green-600 transition-colors flex items-center justify-center space-x-2"
+              className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center space-x-2"
             >
               <RotateCcw className="w-5 h-5" />
               <span>Record Again</span>
@@ -196,14 +193,14 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
       </div>
       
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-700 text-sm">{error}</p>
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg">
+          <p className="text-rose-700 text-sm">{error}</p>
         </div>
       )}
       
       {lastRecording && state === 'ready' && (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-          <h4 className="text-sm font-medium text-green-800 mb-2">Recording Preview:</h4>
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+          <h4 className="text-sm font-medium text-emerald-800 mb-2">Recording Preview:</h4>
           <audio controls src={lastRecording} className="w-full" />
         </div>
       )}
