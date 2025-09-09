@@ -6,6 +6,7 @@ import { db } from '../../src/db';
 import { Auction } from '../../src/types';
 import { uid } from '../../src/lib/id';
 import { setCurrentAuctionId, getCurrentAuctionId } from '../../src/lib/currentAuction';
+import { upsertAuction } from '../../src/lib/supabaseSync';
 import { Plus, Edit2, Archive, ArchiveRestore, Check, X, ArrowLeft } from 'lucide-react';
 
 export default function AuctionsPage() {
@@ -69,6 +70,9 @@ export default function AuctionsPage() {
       await db.auctions.add(newAuction);
       setAuctions(prev => [newAuction, ...prev]);
       setNewAuctionName('');
+      
+      // Sync to Supabase
+      await upsertAuction({ id: newAuction.id, name: newAuction.name });
     } catch (error) {
       console.error('Error creating auction:', error);
     } finally {
@@ -91,6 +95,9 @@ export default function AuctionsPage() {
       ));
       setEditingAuction(null);
       setEditName('');
+      
+      // Sync to Supabase
+      await upsertAuction({ id: auctionId, name: editName.trim() });
     } catch (error) {
       console.error('Error updating auction:', error);
     }

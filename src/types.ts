@@ -23,6 +23,12 @@ export interface MediaItem {
   createdAt: Date;
   uploaded: boolean;
   remotePath?: string;
+  needsSync?: boolean; // Flag for pending Supabase sync
+  // Media metadata for Supabase
+  bytes?: number;
+  width?: number;
+  height?: number;
+  duration?: number; // For audio files
 }
 
 export interface MediaBlob {

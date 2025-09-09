@@ -1,22 +1,17 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import RegisterSW from "./register-sw";
+import "../globals.css";
 import { AuthProvider } from "@/src/contexts/AuthContext";
-import { ToastProvider } from "@/src/contexts/ToastContext";
-import AuthGuard from "@/src/components/AuthGuard";
-import Header from "@/src/components/Header";
-import SyncSetup from "@/src/components/SyncSetup";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Lot Logger",
-  description: "A PWA for lot tracking and logging",
+  title: "Sign In - Lot Logger",
+  description: "Sign in to Lot Logger",
 };
 
-export default function RootLayout({
+export default function AuthLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -31,22 +26,10 @@ export default function RootLayout({
         <meta name="theme-color" content="#0b132b" />
       </head>
 
-      {/* Apply Tailwind baseline to body; keep your font vars */}
       <body className={`${geistSans.variable} ${geistMono.variable} bg-brand-bg text-slate-100 antialiased`}>
-        <ToastProvider>
-          <SyncSetup />
-          <AuthProvider>
-            <AuthGuard>
-              {/* Centered, readable content area with larger padding for Mark */}
-              <main className="mx-auto max-w-xl p-5 pb-24 space-y-6">
-                <Header />
-                {children}
-              </main>
-            </AuthGuard>
-          </AuthProvider>
-        </ToastProvider>
-
-        <RegisterSW />
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

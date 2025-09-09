@@ -6,6 +6,7 @@ import { Lot, MediaItem } from '../../src/types';
 import { syncPending, UploadProgress } from '../../src/lib/uploadQueue';
 import { toCSV, CsvRow } from '../../src/lib/csv';
 import { getCurrentAuction } from '../../src/lib/currentAuction';
+import { upsertLot } from '../../src/lib/supabaseSync';
 import { useRouter } from 'next/navigation';
 
 export default function SendPage() {
@@ -172,6 +173,16 @@ export default function SendPage() {
       
       // Update local state
       setLots(prev => prev.map(lot => ({ ...lot, status: 'sent' as const })));
+      
+      // Sync each lot to Supabase
+      for (const lot of lots) {
+        await upsertLot({ 
+          id: lot.id, 
+          auctionId: lot.auctionId, 
+          number: lot.number, 
+          status: 'sent' 
+        });
+      }
       
       console.log(`Marked ${lotIds.length} lots as sent for auction ${currentAuctionId}`);
     } catch (error) {

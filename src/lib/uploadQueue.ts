@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { getMediaBlob } from './blobStore';
+import { upsertMedia } from './supabaseSync';
 
 export interface UploadProgress {
   done: number;
@@ -16,6 +17,70 @@ export interface UploadResult {
 }
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to extract media metadata
+async function extractMediaMetadata(blob: Blob, mediaType: string): Promise<{
+  bytes: number;
+  width?: number;
+  height?: number;
+  duration?: number;
+}> {
+  const metadata: {
+    bytes: number;
+    width?: number;
+    height?: number;
+    duration?: number;
+  } = {
+    bytes: blob.size
+  };
+
+  if (mediaType === 'photo') {
+    try {
+      // Extract image dimensions
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      
+      await new Promise((resolve, reject) => {
+        img.onload = () => {
+          metadata.width = img.naturalWidth;
+          metadata.height = img.naturalHeight;
+          URL.revokeObjectURL(url);
+          resolve(undefined);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Failed to load image'));
+        };
+        img.src = url;
+      });
+    } catch (error) {
+      console.warn('Failed to extract image dimensions:', error);
+    }
+  } else if (mediaType.includes('Voice')) {
+    try {
+      // Extract audio duration
+      const audio = new Audio();
+      const url = URL.createObjectURL(blob);
+      
+      await new Promise((resolve, reject) => {
+        audio.onloadedmetadata = () => {
+          metadata.duration = audio.duration;
+          URL.revokeObjectURL(url);
+          resolve(undefined);
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Failed to load audio'));
+        };
+        audio.src = url;
+      });
+    } catch (error) {
+      console.warn('Failed to extract audio duration:', error);
+    }
+  }
+
+  return metadata;
+}
 
 export async function syncPending(
   onProgress?: (info: UploadProgress) => void
@@ -102,11 +167,43 @@ export async function syncPending(
             // Check if it's a stub URL
             if (url.startsWith('data:') || url.includes('stub')) {
               console.log(`Simulating upload for ${media.id} (stub URL)`);
+              
+              // Extract media metadata even for stub uploads
+              const metadata = await extractMediaMetadata(blob, media.type);
+              
               // Mark as uploaded for testing
               await db.media.update(media.id, { 
                 uploaded: true, 
-                remotePath: key 
+                remotePath: key,
+                bytes: metadata.bytes,
+                width: metadata.width,
+                height: metadata.height,
+                duration: metadata.duration,
+                needsSync: true // Mark for Supabase sync
               });
+              
+              // Sync to Supabase (non-blocking)
+              try {
+                const kind = media.type === 'photo' ? 'photo' : 'audio';
+                await upsertMedia({
+                  id: media.id,
+                  lotId: media.lotId,
+                  kind,
+                  r2Key: key,
+                  bytes: metadata.bytes,
+                  width: metadata.width,
+                  height: metadata.height,
+                  duration: metadata.duration,
+                  indexInLot: media.index
+                });
+                
+                // Mark as synced
+                await db.media.update(media.id, { needsSync: false });
+              } catch (syncError) {
+                console.warn(`Failed to sync media ${media.id} to Supabase:`, syncError);
+                // Keep needsSync flag for retry later
+              }
+              
               uploadSuccess = true;
               result.success++;
               break;
@@ -122,11 +219,42 @@ export async function syncPending(
             });
             
             if (uploadResponse.ok) {
-              // Mark as uploaded and store remote path
+              // Extract media metadata
+              const metadata = await extractMediaMetadata(blob, media.type);
+              
+              // Mark as uploaded and store remote path and metadata
               await db.media.update(media.id, { 
                 uploaded: true, 
-                remotePath: key 
+                remotePath: key,
+                bytes: metadata.bytes,
+                width: metadata.width,
+                height: metadata.height,
+                duration: metadata.duration,
+                needsSync: true // Mark for Supabase sync
               });
+              
+              // Sync to Supabase (non-blocking)
+              try {
+                const kind = media.type === 'photo' ? 'photo' : 'audio';
+                await upsertMedia({
+                  id: media.id,
+                  lotId: media.lotId,
+                  kind,
+                  r2Key: key,
+                  bytes: metadata.bytes,
+                  width: metadata.width,
+                  height: metadata.height,
+                  duration: metadata.duration,
+                  indexInLot: media.index
+                });
+                
+                // Mark as synced
+                await db.media.update(media.id, { needsSync: false });
+              } catch (syncError) {
+                console.warn(`Failed to sync media ${media.id} to Supabase:`, syncError);
+                // Keep needsSync flag for retry later
+              }
+              
               uploadSuccess = true;
               result.success++;
               console.log(`Successfully uploaded ${media.id}`);

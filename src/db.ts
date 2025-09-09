@@ -53,6 +53,26 @@ export class LotLoggerDB extends Dexie {
         await tx.table('auctions').update(auction.id, { archived: false });
       }
     });
+    
+    this.version(4).stores({
+      auctions: 'id, name, createdAt, archived',
+      lots: 'id, number, auctionId, status, createdAt',
+      media: 'id, lotId, type, index, createdAt, uploaded, remotePath, needsSync, bytes, width, height, duration',
+      blobs: 'id',
+      meta: 'key'
+    }).upgrade(async (tx) => {
+      // Migration: Add new media fields (default to undefined/false)
+      const existingMedia = await tx.table('media').toArray();
+      for (const media of existingMedia) {
+        await tx.table('media').update(media.id, { 
+          needsSync: false,
+          bytes: undefined,
+          width: undefined,
+          height: undefined,
+          duration: undefined
+        });
+      }
+    });
   }
 }
 

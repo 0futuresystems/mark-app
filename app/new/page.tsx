@@ -12,6 +12,7 @@ import CameraCapture from '../../src/components/CameraCapture';
 import AudioRecorder from '../../src/components/AudioRecorder';
 import Toast from '../../src/components/Toast';
 import { getCurrentAuction } from '../../src/lib/currentAuction';
+import { upsertLot } from '../../src/lib/supabaseSync';
 import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function NewLotPage() {
@@ -59,6 +60,15 @@ export default function NewLotPage() {
       await db.lots.add(newLot);
       setLot(newLot);
       console.log('Created new lot:', newLot.id, newLot.number);
+      
+      // Sync to Supabase
+      await upsertLot({ 
+        id: newLot.id, 
+        auctionId: newLot.auctionId, 
+        number: newLot.number, 
+        status: newLot.status 
+      });
+      
       return newLot;
     } catch (error) {
       console.error('Error creating lot:', error);
@@ -232,6 +242,14 @@ export default function NewLotPage() {
       if (lot) {
         await db.lots.update(lot.id, { status: 'complete' });
         console.log('Marked lot as complete:', lot.id, lot.number);
+        
+        // Sync to Supabase
+        await upsertLot({ 
+          id: lot.id, 
+          auctionId: lot.auctionId, 
+          number: lot.number, 
+          status: 'complete' 
+        });
         
         // Show success toast
         setToast({ message: `Lot #${lot.number} saved`, type: 'success' });
