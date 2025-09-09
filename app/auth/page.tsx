@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/src/lib/supabaseClient'
+import { supabase, isSupabaseConfigured } from '@/src/lib/supabaseClient'
 import { useAuth } from '@/src/contexts/AuthContext'
 import { useToast } from '@/src/contexts/ToastContext'
 import { useRouter } from 'next/navigation'
-import { Mail, ArrowRight } from 'lucide-react'
+import { Mail, ArrowRight, AlertTriangle } from 'lucide-react'
 
 export default function AuthPage() {
   const [email, setEmail] = useState('')
@@ -26,6 +26,12 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
+      // Check if Supabase is configured before attempting to use it
+      if (!isSupabaseConfigured()) {
+        showToast('Authentication service is not configured. Please contact support.', 'error')
+        return
+      }
+
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -57,6 +63,19 @@ export default function AuthPage() {
             Enter your email to get started
           </p>
         </div>
+
+        {/* Configuration Warning */}
+        {!isSupabaseConfigured() && (
+          <div className="bg-yellow-900/20 border border-yellow-500 rounded-lg p-4">
+            <div className="flex items-center space-x-2 text-sm">
+              <AlertTriangle className="w-4 h-4 text-yellow-500" />
+              <span className="text-yellow-300">Authentication service not configured</span>
+            </div>
+            <div className="mt-1 text-yellow-200 text-xs">
+              Please contact support to enable login functionality
+            </div>
+          </div>
+        )}
 
         {/* Domain Info */}
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">

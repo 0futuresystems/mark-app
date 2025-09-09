@@ -1,10 +1,25 @@
 import { createClient } from '@supabase/supabase-js'
+import { getPublicEnv, isPublicEnvConfigured } from './env'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Get environment variables safely (never throws at import time)
+const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getPublicEnv()
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+// Create client with fallback values to prevent crashes
+// Validation will happen at runtime when actually used
+export const supabase = createClient(
+  NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+  NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+)
+
+// Export a function to check if Supabase is properly configured
+export function isSupabaseConfigured(): boolean {
+  return isPublicEnvConfigured()
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Export a function to get the actual configured client (throws if not configured)
+export function getSupabaseClient() {
+  if (!isPublicEnvConfigured()) {
+    throw new Error('Supabase environment variables are not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.')
+  }
+  return supabase
+}

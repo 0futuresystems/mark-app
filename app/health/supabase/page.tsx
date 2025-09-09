@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/src/lib/supabaseClient'
+import { supabase, isSupabaseConfigured } from '@/src/lib/supabaseClient'
+import { getPublicEnv } from '@/src/lib/env'
 import { useAuth } from '@/src/contexts/AuthContext'
 import { CheckCircle, XCircle, AlertCircle, User, Database, RefreshCw } from 'lucide-react'
 
@@ -21,9 +22,10 @@ export default function SupabaseHealthPage() {
     lots: false
   })
 
-  // Check environment variables
-  const hasSupabaseUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL
-  const hasSupabaseKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Check environment variables safely
+  const publicEnv = getPublicEnv()
+  const hasSupabaseUrl = !!publicEnv.NEXT_PUBLIC_SUPABASE_URL
+  const hasSupabaseKey = !!publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const isDev = process.env.NODE_ENV !== 'production'
 
   // Mask user ID for display
