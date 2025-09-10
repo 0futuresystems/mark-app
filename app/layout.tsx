@@ -4,8 +4,6 @@ import "./globals.css";
 import RegisterSW from "./register-sw";
 import { AuthProvider } from "@/src/contexts/AuthContext";
 import { ToastProvider } from "@/src/contexts/ToastContext";
-import AuthGuard from "@/src/components/AuthGuard";
-import Header from "@/src/components/Header";
 import SyncSetup from "@/src/components/SyncSetup";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -36,13 +34,7 @@ export default function RootLayout({
         <ToastProvider>
           <SyncSetup />
           <AuthProvider>
-            <AuthGuard>
-              {/* Centered, readable content area with larger padding for Mark */}
-              <main className="mx-auto max-w-xl p-5 pb-24 space-y-6">
-                <Header />
-                {children}
-              </main>
-            </AuthGuard>
+            {children}
           </AuthProvider>
         </ToastProvider>
 

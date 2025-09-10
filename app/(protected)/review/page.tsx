@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { db } from '../../src/db';
-import { Lot, MediaItem } from '../../src/types';
-import { uid } from '../../src/lib/id';
-import { saveMediaBlob, deleteMediaBlob } from '../../src/lib/blobStore';
-import { downscaleImage } from '../../src/lib/files';
-import AudioRecorder from '../../src/components/AudioRecorder';
-import AudioPlayer from '../../src/components/AudioPlayer';
-import { getCurrentAuction } from '../../src/lib/currentAuction';
+import { db } from '../../../src/db';
+import { Lot, MediaItem } from '../../../src/types';
+import { uid } from '../../../src/lib/id';
+import { saveMediaBlob, deleteMediaBlob } from '../../../src/lib/blobStore';
+import { downscaleImage } from '../../../src/lib/files';
+import AudioRecorder from '../../../src/components/AudioRecorder';
+import AudioPlayer from '../../../src/components/AudioPlayer';
+import { getCurrentAuction } from '../../../src/lib/currentAuction';
 import { useRouter } from 'next/navigation';
-import CameraCapture from '../../src/components/CameraCapture';
-import LotThumbnail from '../../src/components/LotThumbnail';
+import CameraCapture from '../../../src/components/CameraCapture';
+import LotThumbnail from '../../../src/components/LotThumbnail';
 import { ArrowLeft, Trash2, Plus, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function ReviewPage() {

@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Eye, Send } from "lucide-react";
-import { getCurrentAuction } from "../src/lib/currentAuction";
-import { Auction } from "../src/types";
-import QuickOverview from "../src/components/QuickOverview";
-import { useAuctionStats } from "../src/hooks/useAuctionStats";
+import { getCurrentAuction } from "../../src/lib/currentAuction";
+import { Auction } from "../../src/types";
+import QuickOverview from "../../src/components/QuickOverview";
+import { useAuctionStats } from "../../src/hooks/useAuctionStats";
 
 export default function Home() {
   const router = useRouter();

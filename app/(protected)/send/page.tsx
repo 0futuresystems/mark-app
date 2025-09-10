@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { db } from '../../src/db';
-import { Lot, MediaItem } from '../../src/types';
-import { syncPending, UploadProgress } from '../../src/lib/uploadQueue';
-import { toCSV, CsvRow } from '../../src/lib/csv';
-import { getCurrentAuction } from '../../src/lib/currentAuction';
-import { upsertLot } from '../../src/lib/supabaseSync';
+import { db } from '../../../src/db';
+import { Lot, MediaItem } from '../../../src/types';
+import { syncPending, UploadProgress } from '../../../src/lib/uploadQueue';
+import { toCSV, CsvRow } from '../../../src/lib/csv';
+import { getCurrentAuction } from '../../../src/lib/currentAuction';
+import { upsertLot } from '../../../src/lib/supabaseSync';
 import { useRouter } from 'next/navigation';
 
 export default function SendPage() {

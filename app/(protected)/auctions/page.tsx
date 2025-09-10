@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { db } from '../../src/db';
-import { Auction } from '../../src/types';
-import { uid } from '../../src/lib/id';
-import { setCurrentAuctionId, getCurrentAuctionId } from '../../src/lib/currentAuction';
-import { upsertAuction } from '../../src/lib/supabaseSync';
+import { db } from '../../../src/db';
+import { Auction } from '../../../src/types';
+import { uid } from '../../../src/lib/id';
+import { setCurrentAuctionId, getCurrentAuctionId } from '../../../src/lib/currentAuction';
+import { upsertAuction } from '../../../src/lib/supabaseSync';
 import { Plus, Edit2, Archive, ArchiveRestore, Check, X, ArrowLeft } from 'lucide-react';
 
 export default function AuctionsPage() {

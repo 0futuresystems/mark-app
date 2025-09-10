@@ -2,17 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { uid } from '../../src/lib/id';
-import { nextLotNumber } from '../../src/lib/lotNumber';
-import { downscaleImage } from '../../src/lib/files';
-import { saveMediaBlob } from '../../src/lib/blobStore';
-import { db } from '../../src/db';
-import { Lot, MediaItem } from '../../src/types';
-import CameraCapture from '../../src/components/CameraCapture';
-import AudioRecorder from '../../src/components/AudioRecorder';
-import Toast from '../../src/components/Toast';
-import { getCurrentAuction } from '../../src/lib/currentAuction';
-import { upsertLot } from '../../src/lib/supabaseSync';
+import { uid } from '../../../src/lib/id';
+import { nextLotNumber } from '../../../src/lib/lotNumber';
+import { downscaleImage } from '../../../src/lib/files';
+import { saveMediaBlob } from '../../../src/lib/blobStore';
+import { db } from '../../../src/db';
+import { Lot, MediaItem } from '../../../src/types';
+import CameraCapture from '../../../src/components/CameraCapture';
+import AudioRecorder from '../../../src/components/AudioRecorder';
+import Toast from '../../../src/components/Toast';
+import { getCurrentAuction } from '../../../src/lib/currentAuction';
+import { upsertLot } from '../../../src/lib/supabaseSync';
 import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function NewLotPage() {
