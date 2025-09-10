@@ -3,7 +3,8 @@ import { Auction, Lot, MediaItem } from '../types'
 
 // Retry configuration
 const MAX_RETRIES = 3
-const RETRY_DELAY = 1000 // 1 second
+const INITIAL_DELAY = 5000 // 5 seconds
+const MAX_DELAY = 300000 // 5 minutes
 
 // Queue for failed sync operations
 const syncQueue: Array<() => Promise<void>> = []
@@ -24,7 +25,60 @@ function notifyToast(message: string, type: 'success' | 'error') {
   }
 }
 
-// Helper function to retry operations
+// Helper function to categorize errors
+function categorizeError(error: any): { shouldRetry: boolean; category: string; message: string } {
+  const errorMessage = error?.message || error?.toString() || 'Unknown error'
+  
+  // Authentication/permission errors - don't retry
+  if (errorMessage.includes('JWT') || 
+      errorMessage.includes('unauthorized') || 
+      errorMessage.includes('permission') ||
+      errorMessage.includes('auth') ||
+      error?.status === 401 ||
+      error?.status === 403) {
+    return {
+      shouldRetry: false,
+      category: 'authentication',
+      message: 'Authentication or permission error - not retrying'
+    }
+  }
+  
+  // Network errors - retry
+  if (errorMessage.includes('network') || 
+      errorMessage.includes('timeout') || 
+      errorMessage.includes('connection') ||
+      errorMessage.includes('fetch') ||
+      error?.code === 'NETWORK_ERROR' ||
+      error?.status >= 500) {
+    return {
+      shouldRetry: true,
+      category: 'network',
+      message: 'Network error - will retry'
+    }
+  }
+  
+  // Data validation errors - don't retry
+  if (errorMessage.includes('validation') || 
+      errorMessage.includes('constraint') ||
+      errorMessage.includes('duplicate') ||
+      error?.status === 400 ||
+      error?.status === 422) {
+    return {
+      shouldRetry: false,
+      category: 'data',
+      message: 'Data validation error - not retrying'
+    }
+  }
+  
+  // Default to retry for unknown errors
+  return {
+    shouldRetry: true,
+    category: 'unknown',
+    message: 'Unknown error - will retry'
+  }
+}
+
+// Helper function to retry operations with exponential backoff
 async function withRetry<T>(
   operation: () => Promise<T>,
   operationName: string,
@@ -37,11 +91,25 @@ async function withRetry<T>(
       return await operation()
     } catch (error) {
       lastError = error as Error
-      console.warn(`${operationName} attempt ${attempt} failed:`, error)
+      const errorInfo = categorizeError(error)
+      
+      console.warn(`${operationName} attempt ${attempt} failed:`, {
+        error: errorInfo.message,
+        category: errorInfo.category,
+        originalError: error
+      })
+      
+      // Don't retry if error category indicates we shouldn't
+      if (!errorInfo.shouldRetry) {
+        console.error(`${operationName} failed with non-retryable error:`, errorInfo.message)
+        return null
+      }
       
       if (attempt < maxRetries) {
-        // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt))
+        // Exponential backoff: Math.min(INITIAL_DELAY * Math.pow(2, attempt - 1), MAX_DELAY)
+        const delay = Math.min(INITIAL_DELAY * Math.pow(2, attempt - 1), MAX_DELAY)
+        console.log(`${operationName} retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
   }
@@ -73,9 +141,10 @@ export async function upsertAuction(auction: { id: string; name: string }): Prom
   if (result === null) {
     // Add to retry queue
     syncQueue.push(() => upsertAuction(auction))
+    console.warn(`🔄 Queued auction for retry: ${auction.id} - ${auction.name}`)
     notifyToast(`Failed to sync auction "${auction.name}". Will retry later.`, 'error')
   } else {
-    console.log(`Successfully synced auction: ${auction.id} - ${auction.name}`)
+    console.log(`✅ Successfully synced auction: ${auction.id} - ${auction.name}`)
   }
 }
 
@@ -109,33 +178,54 @@ export async function upsertLot(lot: {
   if (result === null) {
     // Add to retry queue
     syncQueue.push(() => upsertLot(lot))
+    console.warn(`🔄 Queued lot for retry: ${lot.id} - #${lot.number} (${lot.status})`)
     notifyToast(`Failed to sync lot #${lot.number}. Will retry later.`, 'error')
   } else {
-    console.log(`Successfully synced lot: ${lot.id} - #${lot.number} (${lot.status})`)
+    console.log(`✅ Successfully synced lot: ${lot.id} - #${lot.number} (${lot.status})`)
   }
 }
 
 // Process the retry queue
 export async function processSyncQueue(): Promise<void> {
-  if (syncQueue.length === 0) return
+  if (syncQueue.length === 0) {
+    console.log('Sync queue is empty - no operations to process')
+    return
+  }
   
-  console.log(`Processing ${syncQueue.length} queued sync operations...`)
+  console.log(`🔄 Processing ${syncQueue.length} queued sync operations...`)
+  const startTime = Date.now()
   
   const operations = [...syncQueue]
   syncQueue.length = 0 // Clear the queue
   
-  for (const operation of operations) {
+  let successCount = 0
+  let failureCount = 0
+  
+  for (let i = 0; i < operations.length; i++) {
+    const operation = operations[i]
     try {
+      console.log(`📤 Processing sync operation ${i + 1}/${operations.length}`)
       await operation()
+      successCount++
+      console.log(`✅ Sync operation ${i + 1} completed successfully`)
     } catch (error) {
-      console.error('Failed to process queued sync operation:', error)
+      failureCount++
+      console.error(`❌ Failed to process queued sync operation ${i + 1}:`, error)
       // Re-queue the operation for later
       syncQueue.push(operation)
     }
   }
   
+  const duration = Date.now() - startTime
+  console.log(`📊 Sync queue processing completed in ${duration}ms:`)
+  console.log(`   ✅ Successful: ${successCount}`)
+  console.log(`   ❌ Failed: ${failureCount}`)
+  console.log(`   ⏳ Re-queued: ${syncQueue.length}`)
+  
   if (syncQueue.length > 0) {
-    console.log(`${syncQueue.length} operations still pending retry`)
+    console.warn(`⚠️  ${syncQueue.length} operations still pending retry`)
+  } else {
+    console.log('🎉 All sync operations completed successfully')
   }
 }
 
@@ -179,9 +269,10 @@ export async function upsertMedia(media: {
   if (result === null) {
     // Add to retry queue
     syncQueue.push(() => upsertMedia(media))
+    console.warn(`🔄 Queued media for retry: ${media.id} (${media.kind})`)
     notifyToast(`Failed to sync media ${media.id}. Will retry later.`, 'error')
   } else {
-    console.log(`Successfully synced media: ${media.id} (${media.kind})`)
+    console.log(`✅ Successfully synced media: ${media.id} (${media.kind})`)
   }
 }
 
@@ -241,7 +332,27 @@ export async function processPendingMediaSyncs(): Promise<void> {
   }
 }
 
-// Get queue status
-export function getSyncQueueStatus(): { pending: number } {
-  return { pending: syncQueue.length }
+// Get queue status with detailed information
+export function getSyncQueueStatus(): { 
+  pending: number; 
+  isEmpty: boolean; 
+  lastProcessed?: Date;
+  status: 'idle' | 'processing' | 'has_pending';
+} {
+  return { 
+    pending: syncQueue.length,
+    isEmpty: syncQueue.length === 0,
+    status: syncQueue.length === 0 ? 'idle' : 'has_pending'
+  }
+}
+
+// Enhanced logging for sync operations
+export function logSyncStatus(): void {
+  const status = getSyncQueueStatus()
+  console.log('📋 Sync Queue Status:', {
+    pendingOperations: status.pending,
+    isEmpty: status.isEmpty,
+    status: status.status,
+    timestamp: new Date().toISOString()
+  })
 }

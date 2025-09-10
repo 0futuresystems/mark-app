@@ -19,6 +19,7 @@ export default function AuthPage() {
   const { showToast } = useToast()
   const router = useRouter()
 
+
   // Load last used email from localStorage
   useEffect(() => {
     const lastEmail = localStorage.getItem('lot-logger-last-email')
@@ -91,33 +92,6 @@ export default function AuthPage() {
     }
   }
 
-  const handleMagicLink = async () => {
-    setLoading(true)
-
-    try {
-      if (!isSupabaseConfigured()) {
-        showToast('Authentication service is not configured. Please contact support.', 'error')
-        return
-      }
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
-      })
-
-      if (error) {
-        showToast(`Failed to send link: ${error.message}`, 'error')
-      } else {
-        showToast('Check your email for a login link.', 'success')
-      }
-    } catch (error) {
-      showToast(`Failed to send link: ${error}`, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleBackToEmail = () => {
     setStep('email')
@@ -130,22 +104,22 @@ export default function AuthPage() {
       <div className="w-full max-w-sm space-y-8">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             Sign in
           </h1>
-          <p className="text-gray-400 text-sm">
+          <p className="text-gray-600 dark:text-gray-300 text-sm">
             {step === 'email' ? "We'll email you a login code." : "Enter the 6-digit code we sent to your email."}
           </p>
         </div>
 
         {/* Configuration Warning */}
         {!isSupabaseConfigured() && (
-          <div className="bg-yellow-900/20 border border-yellow-500 rounded-lg p-4">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-500 rounded-lg p-4">
             <div className="flex items-center space-x-2 text-sm">
-              <AlertTriangle className="w-4 h-4 text-yellow-500" />
-              <span className="text-yellow-300">Authentication service not configured</span>
+              <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-500" />
+              <span className="text-yellow-800 dark:text-yellow-300">Authentication service not configured</span>
             </div>
-            <div className="mt-1 text-yellow-200 text-xs">
+            <div className="mt-1 text-yellow-700 dark:text-yellow-200 text-xs">
               Please contact support to enable login functionality
             </div>
           </div>
@@ -155,7 +129,7 @@ export default function AuthPage() {
         {step === 'email' && (
           <form onSubmit={handleSendCode} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Email address
               </label>
               <input
@@ -190,17 +164,6 @@ export default function AuthPage() {
               )}
             </button>
 
-            {/* Magic Link Option */}
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={handleMagicLink}
-                disabled={loading || !email.trim()}
-                className="text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors"
-              >
-                Prefer a link? Send me a link instead
-              </button>
-            </div>
           </form>
         )}
 
@@ -208,7 +171,7 @@ export default function AuthPage() {
         {step === 'code' && (
           <form onSubmit={handleVerifyCode} className="space-y-6">
             <div>
-              <label htmlFor="code" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 6-digit code
               </label>
               <input
@@ -252,7 +215,7 @@ export default function AuthPage() {
                 type="button"
                 onClick={handleBackToEmail}
                 disabled={loading}
-                className="text-sm text-gray-400 hover:text-gray-300 disabled:opacity-50 transition-colors"
+                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50 transition-colors"
               >
                 ← Back to email
               </button>
@@ -262,8 +225,8 @@ export default function AuthPage() {
 
         {/* Help Text */}
         <div className="text-center">
-          <p className="text-xs text-gray-500">
-            No password required • Secure authentication
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            No password required • Secure OTP authentication
           </p>
         </div>
       </div>

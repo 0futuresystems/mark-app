@@ -7,7 +7,9 @@ import { syncPending, UploadProgress } from '../../../src/lib/uploadQueue';
 import { toCSV, CsvRow } from '../../../src/lib/csv';
 import { getCurrentAuction } from '../../../src/lib/currentAuction';
 import { upsertLot } from '../../../src/lib/supabaseSync';
+import { getMediaBlob } from '../../../src/lib/blobStore';
 import { useRouter } from 'next/navigation';
+import JSZip from 'jszip';
 
 export default function SendPage() {
   const router = useRouter();
@@ -19,6 +21,8 @@ export default function SendPage() {
   const [allUploaded, setAllUploaded] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [uploadResult, setUploadResult] = useState<{success: number; failed: number; skipped: number; errors: string[]} | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{current: number; total: number; label: string} | null>(null);
 
   // Load current auction on mount
   useEffect(() => {
@@ -165,6 +169,81 @@ export default function SendPage() {
     window.URL.revokeObjectURL(url);
   };
 
+  const exportDataWithMedia = async () => {
+    setExporting(true);
+    setExportProgress({ current: 0, total: 0, label: 'Preparing export...' });
+    
+    try {
+      const zip = new JSZip();
+      const currentAuction = await getCurrentAuction();
+      const auctionName = currentAuction?.name || 'Unknown';
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Generate CSV data
+      setExportProgress({ current: 1, total: 3, label: 'Generating CSV data...' });
+      const csvContent = await generateCSV();
+      zip.file('lots_data.csv', csvContent);
+      
+      // Add media files
+      setExportProgress({ current: 2, total: 3, label: 'Adding media files...' });
+      const mediaFolder = zip.folder('media');
+      let processedMedia = 0;
+      const totalMedia = media.length;
+      
+      for (const mediaItem of media) {
+        try {
+          const blob = await getMediaBlob(mediaItem.id);
+          if (blob) {
+            // Determine file extension based on media type
+            let extension = '';
+            if (mediaItem.type === 'photo') {
+              extension = blob.type.includes('jpeg') || blob.type.includes('jpg') ? '.jpg' : '.png';
+            } else if (mediaItem.type === 'mainVoice' || mediaItem.type === 'dimensionVoice') {
+              extension = blob.type.includes('webm') ? '.webm' : '.mp3';
+            }
+            
+            const fileName = `${mediaItem.lotId}_${mediaItem.type}_${mediaItem.index}${extension}`;
+            mediaFolder?.file(fileName, blob);
+          } else {
+            console.warn(`Missing media file for ${mediaItem.id}`);
+          }
+        } catch (error) {
+          console.error(`Error processing media ${mediaItem.id}:`, error);
+        }
+        
+        processedMedia++;
+        setExportProgress({ 
+          current: 2, 
+          total: 3, 
+          label: `Adding media files... (${processedMedia}/${totalMedia})` 
+        });
+      }
+      
+      // Generate and download ZIP
+      setExportProgress({ current: 3, total: 3, label: 'Creating ZIP file...' });
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      
+      const fileName = `lots_${auctionName.replace(/[^a-zA-Z0-9]/g, '_')}_${today}.zip`;
+      const url = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setExportProgress(null);
+      
+    } catch (error) {
+      console.error('Error creating ZIP export:', error);
+      alert('Export failed. Please try again.');
+    } finally {
+      setExporting(false);
+      setExportProgress(null);
+    }
+  };
+
   const markLotsAsSent = async () => {
     try {
       // Mark all lots in the current auction as 'sent'
@@ -190,12 +269,12 @@ export default function SendPage() {
     }
   };
 
-  const handleUploadAndCSV = async () => {
+  const handleUploadAndExport = async () => {
     const incompleteLots = getLotsWithWarnings();
     
     if (incompleteLots.length > 0) {
       const shouldContinue = confirm(
-        `You have ${incompleteLots.length} incomplete lots (missing photos, main voice, or dimensions voice). You can still export CSV and mark lots as sent. Continue anyway?`
+        `You have ${incompleteLots.length} incomplete lots (missing photos, main voice, or dimensions voice). You can still export data and mark lots as sent. Continue anyway?`
       );
       
       if (!shouldContinue) {
@@ -218,15 +297,14 @@ export default function SendPage() {
       // Reload data to get updated upload status
       await loadData();
       
-      // Generate and download CSV
-      const csvContent = await generateCSV();
-      await downloadCSV(csvContent);
+      // Export data with media as ZIP
+      await exportDataWithMedia();
       
       // Mark lots as sent after successful export
       await markLotsAsSent();
       
     } catch (error) {
-      console.error('Error during upload and CSV generation:', error);
+      console.error('Error during upload and export:', error);
       // TODO: Replace with proper toast notification
       alert('Upload failed. Please check your connection and try again.');
     } finally {
@@ -325,6 +403,24 @@ export default function SendPage() {
           </div>
         )}
 
+        {exportProgress && (
+          <div className="bg-emerald-50 border border-emerald-600 rounded-lg p-4 mb-8">
+            <div className="flex justify-between items-center mb-2">
+              <span className="font-semibold text-emerald-900">Exporting Data</span>
+              <span className="text-emerald-700 font-medium">{Math.round((exportProgress.current / exportProgress.total) * 100)}%</span>
+            </div>
+            <div className="w-full bg-emerald-200 rounded-full h-2 overflow-hidden">
+              <div 
+                className="bg-emerald-600 h-full transition-all duration-300 ease-out"
+                style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
+              />
+            </div>
+            <p className="mt-2 text-sm text-emerald-700">
+              {exportProgress.label}
+            </p>
+          </div>
+        )}
+
         {uploadResult && (
           <div className={`rounded-lg p-4 mb-8 ${
             uploadResult.failed > 0 
@@ -348,24 +444,51 @@ export default function SendPage() {
           </div>
         )}
 
-        {/* Upload Action */}
+        {/* Upload and Export Actions */}
         {allUploaded ? (
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-8 text-center mb-8">
             <h2 className="text-emerald-800 font-semibold mb-2">All uploaded ✓</h2>
-            <p className="text-emerald-700">All media has been successfully uploaded.</p>
+            <p className="text-emerald-700 mb-4">All media has been successfully uploaded.</p>
+            <button
+              onClick={exportDataWithMedia}
+              disabled={exporting}
+              className={`inline-flex items-center px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                exporting
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md'
+              }`}
+            >
+              {exporting ? 'Exporting...' : 'Export Data with Media (ZIP)'}
+            </button>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8 space-y-4">
             <button
-              onClick={handleUploadAndCSV}
-              disabled={uploading}
+              onClick={handleUploadAndExport}
+              disabled={uploading || exporting}
               className={`w-full py-4 px-6 rounded-xl font-semibold text-base sm:text-lg transition-all duration-200 ${
-                uploading
+                uploading || exporting
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md'
               }`}
             >
-              {uploading ? 'Uploading...' : 'Upload Pending & Generate CSV'}
+              {uploading ? 'Uploading...' : exporting ? 'Exporting...' : 'Upload Pending & Export Data (ZIP)'}
+            </button>
+            
+            <div className="text-center">
+              <span className="text-gray-500 text-sm">or</span>
+            </div>
+            
+            <button
+              onClick={exportDataWithMedia}
+              disabled={exporting}
+              className={`w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 ${
+                exporting
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-gray-600 text-white hover:bg-gray-700 shadow-sm hover:shadow-md'
+              }`}
+            >
+              {exporting ? 'Exporting...' : 'Export Data Only (ZIP)'}
             </button>
           </div>
         )}

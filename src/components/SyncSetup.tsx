@@ -11,11 +11,11 @@ export default function SyncSetup() {
     // Set up the sync toast handler
     setSyncToastHandler(showToast)
     
-    // Process sync queue every 30 seconds
+    // Process sync queue every 5 minutes
     const interval = setInterval(() => {
       processSyncQueue()
       processPendingMediaSyncs()
-    }, 30000)
+    }, 300000)
     
     // Also process on page focus (when user comes back to the app)
     const handleFocus = () => {

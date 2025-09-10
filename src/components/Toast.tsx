@@ -16,7 +16,7 @@ export default function Toast({ message, type, onClose, duration = 1200 }: Toast
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false);
-      setTimeout(onClose, 150); // Allow fade out animation
+      setTimeout(onClose, 300); // Allow fade out animation
     }, duration);
 
     return () => clearTimeout(timer);
@@ -24,13 +24,13 @@ export default function Toast({ message, type, onClose, duration = 1200 }: Toast
 
   const handleClose = () => {
     setIsVisible(false);
-    setTimeout(onClose, 150);
+    setTimeout(onClose, 300); // Match transition duration
   };
 
   return (
     <div
-      className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-150 ease-in-out ${
-        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+      className={`fixed top-4 right-4 z-50 max-w-sm w-full transform transition-all duration-300 ease-in-out ${
+        isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'
       }`}
       role="alert"
       aria-live="polite"

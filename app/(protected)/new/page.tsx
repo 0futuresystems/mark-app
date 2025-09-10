@@ -100,7 +100,7 @@ export default function NewLotPage() {
   // Handle page exit/back with cleanup
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (lot && (photos.length === 0 || !mainVoice)) {
+      if (lot && photos.length === 0) {
         cleanupIncompleteLot(lot);
       }
     };
@@ -109,10 +109,10 @@ export default function NewLotPage() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [lot, photos.length, mainVoice]);
+  }, [lot, photos.length]);
 
   const handleBack = async () => {
-    if (lot && (photos.length === 0 || !mainVoice)) {
+    if (lot && photos.length === 0) {
       await cleanupIncompleteLot(lot);
     }
     router.back();
@@ -225,15 +225,10 @@ export default function NewLotPage() {
 
   const handleFinishLot = async () => {
     const photoCount = photos.length;
-    const hasMainVoice = mainVoice !== null;
     
-    // Enforce minimum requirements: at least 1 photo AND 1 main voice
-    if (photoCount < 1 || !hasMainVoice) {
-      const missingItems = [];
-      if (photoCount < 1) missingItems.push('at least 1 photo');
-      if (!hasMainVoice) missingItems.push('main voice recording');
-      
-      alert(`Cannot finish lot. You need ${missingItems.join(' and ')}.`);
+    // Enforce minimum requirements: at least 1 photo
+    if (photoCount < 1) {
+      alert('Cannot finish lot. You need at least 1 photo.');
       return;
     }
     
@@ -280,7 +275,7 @@ export default function NewLotPage() {
   };
 
   // Check if we can finish the current lot
-  const canFinish = photos.length >= 1 && mainVoice !== null;
+  const canFinish = photos.length >= 1;
   const currentLotNumber = lot ? lot.number : 'New';
 
   if (loading) {
@@ -307,9 +302,11 @@ export default function NewLotPage() {
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">New Lot: {currentLotNumber}</h1>
+              <h1 className="text-3xl font-bold text-gray-900">
+                {lot ? `Lot #${lot.number.toString().padStart(3, '0')}` : 'New Lot'}
+              </h1>
               <p className="text-gray-600 mt-1">
-                {lot ? 'Complete the required steps to finish your lot' : 'Add your first photo or voice note to start'}
+                {lot ? 'Complete the required steps to finish your lot' : 'Add your first photo to start'}
               </p>
             </div>
           </div>
@@ -365,12 +362,12 @@ export default function NewLotPage() {
               {mainVoice ? (
                 <div className="flex items-center space-x-1 text-emerald-600">
                   <CheckCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Required ✓</span>
+                  <span className="text-sm font-medium">Optional ✓</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1 text-gray-600">
+                <div className="flex items-center space-x-1 text-gray-500">
                   <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Voice note required</span>
+                  <span className="text-sm font-medium">Optional - not required</span>
                 </div>
               )}
             </div>
