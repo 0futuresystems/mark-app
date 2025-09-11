@@ -1,3 +1,9 @@
 {
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "functions": {
+    "app/api/**/route.ts":   { "runtime": "nodejs22.x", "memory": 1024, "maxDuration": 60, "regions": ["iad1"] },
+    "app/api/**/route.js":   { "runtime": "nodejs22.x", "memory": 1024, "maxDuration": 60, "regions": ["iad1"] },
+    "pages/api/**/*.ts":     { "runtime": "nodejs22.x", "memory": 1024, "maxDuration": 60, "regions": ["iad1"] },
+    "pages/api/**/*.js":     { "runtime": "nodejs22.x", "memory": 1024, "maxDuration": 60, "regions": ["iad1"] }
+  }
 }

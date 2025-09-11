@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerEnv } from '@/lib/env';
 
+export const runtime = 'nodejs';
+
 // Interface for the data sent from client
 interface ExportData {
   lots: Array<{

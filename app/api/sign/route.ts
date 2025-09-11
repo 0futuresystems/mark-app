@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerEnv } from '@/lib/env';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     // Get server environment variables safely (runtime check only)
