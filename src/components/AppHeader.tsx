@@ -66,7 +66,7 @@ export default function AppHeader() {
   return (
     <header className="flex justify-between items-center py-3 px-4 border-b border-gray-700 bg-brand-bg">
       {/* App Title */}
-      <h1 className="text-lg font-semibold text-white">Lot Logger</h1>
+      <h1 className="text-lg font-semibold text-brand-text">Lot Logger</h1>
       
       {/* Right side with sync status and avatar */}
       <div className="flex items-center space-x-3">
@@ -106,10 +106,10 @@ export default function AppHeader() {
                     {getInitials(user.email || '')}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">
+                    <p className="text-sm font-medium text-brand-text truncate">
                       {truncateEmail(user.email || '')}
                     </p>
-                    <p className="text-xs text-gray-400">Account</p>
+                    <p className="text-xs text-brand-text-muted">Account</p>
                   </div>
                 </div>
               </div>
@@ -117,7 +117,7 @@ export default function AppHeader() {
               <div className="py-1">
                 <button
                   onClick={handleSignOut}
-                  className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800/50 hover:text-white transition-colors"
+                  className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-brand-text-muted hover:bg-gray-800/50 hover:text-brand-text transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Sign out</span>

@@ -56,8 +56,8 @@ export default function Home() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-400 mt-1">Track and manage your lots</p>
+        <h1 className="text-2xl font-bold text-brand-text">Dashboard</h1>
+        <p className="text-brand-text-muted mt-1">Track and manage your lots</p>
       </div>
 
       {/* Current Auction Card */}
@@ -66,11 +66,11 @@ export default function Home() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                <h2 className="text-lg font-semibold text-white truncate">
+                <h2 className="text-lg font-semibold text-brand-text truncate">
                   Current auction: {currentAuction.name}
                 </h2>
               </div>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-brand-text-muted">
                 {auctionStats.total} total lots ({auctionStats.draft} draft, {auctionStats.complete} complete, {auctionStats.sent} sent)
               </p>
             </div>
@@ -90,12 +90,12 @@ export default function Home() {
             href="/new"
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">New Entry</h3>
+              <h3 className="text-lg font-semibold text-brand-text">New Entry</h3>
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Plus className="w-4 h-4 text-white" />
               </div>
             </div>
-            <p className="text-gray-400 text-sm">Create a new lot entry with photos and voice notes</p>
+            <p className="text-brand-text-muted text-sm">Create a new lot entry with photos and voice notes</p>
           </Link>
           
           <Link 
@@ -103,12 +103,12 @@ export default function Home() {
             href="/review"
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Review Data</h3>
+              <h3 className="text-lg font-semibold text-brand-text">Review Data</h3>
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Eye className="w-4 h-4 text-white" />
               </div>
             </div>
-            <p className="text-gray-400 text-sm">Review and manage your existing lot entries</p>
+            <p className="text-brand-text-muted text-sm">Review and manage your existing lot entries</p>
           </Link>
           
           <Link 
@@ -116,12 +116,12 @@ export default function Home() {
             href="/send"
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Send Data</h3>
+              <h3 className="text-lg font-semibold text-brand-text">Send Data</h3>
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <Send className="w-4 h-4 text-white" />
               </div>
             </div>
-            <p className="text-gray-400 text-sm">Upload and send your lot data</p>
+            <p className="text-brand-text-muted text-sm">Upload and send your lot data</p>
           </Link>
         </div>
 
