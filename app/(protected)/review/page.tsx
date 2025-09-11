@@ -22,7 +22,6 @@ export default function ReviewPage() {
   const [lotMedia, setLotMedia] = useState<MediaItem[]>([]);
   const [allMedia, setAllMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [blobCache, setBlobCache] = useState<Map<string, string>>(new Map());
 
   const loadLots = useCallback(async () => {
     if (!currentAuctionId) return;
@@ -101,12 +100,6 @@ export default function ReviewPage() {
   };
 
 
-  // Cleanup blob URLs when component unmounts
-  useEffect(() => {
-    return () => {
-      blobCache.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, [blobCache]);
 
   // Delete lot functionality
   const deleteLot = async (lotId: string) => {
@@ -120,15 +113,6 @@ export default function ReviewPage() {
       for (const mediaItem of mediaItems) {
         await db.media.delete(mediaItem.id);
         await db.blobs.delete(mediaItem.id);
-        // Clean up blob URL from cache
-        if (blobCache.has(mediaItem.id)) {
-          URL.revokeObjectURL(blobCache.get(mediaItem.id)!);
-          setBlobCache(prev => {
-            const newCache = new Map(prev);
-            newCache.delete(mediaItem.id);
-            return newCache;
-          });
-        }
       }
       
       // Delete the lot itself
