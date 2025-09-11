@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { uid } from '../../../src/lib/id';
 import { nextLotNumber } from '../../../src/lib/lotNumber';
-import { downscaleImage } from '../../../src/lib/files';
+import { downscaleImage } from '@/lib/files';
 import { saveMediaBlob } from '../../../src/lib/blobStore';
 import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';

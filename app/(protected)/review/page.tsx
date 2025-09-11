@@ -5,7 +5,7 @@ import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import { uid } from '../../../src/lib/id';
 import { saveMediaBlob, deleteMediaBlob } from '../../../src/lib/blobStore';
-import { downscaleImage } from '../../../src/lib/files';
+import { downscaleImage } from '@/lib/files';
 import AudioRecorder from '../../../src/components/AudioRecorder';
 import AudioPlayer from '../../../src/components/AudioPlayer';
 import { getCurrentAuction } from '../../../src/lib/currentAuction';
