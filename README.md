@@ -19,6 +19,15 @@ A minimal Next.js PWA (Progressive Web App) designed for iPhone Home-Screen use.
 - **Compression**: JSZip
 - **Linting**: ESLint
 
+## Auth (OTP)
+
+This application uses OTP-only authentication with Supabase:
+
+- **Dashboard template must exclude `{{ .ActionLink }}` and include only `{{ .Token }}`**
+- **Public signups disabled. Use `options.shouldCreateUser=false`**
+- No magic links or redirects - users enter code directly in the app
+- Invite-only system - only pre-registered emails can sign in
+
 ## Getting Started
 
 1. Install dependencies:

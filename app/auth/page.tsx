@@ -48,12 +48,17 @@ export default function AuthPage() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          shouldCreateUser: true
+          shouldCreateUser: false // invite-only
         }
       })
 
       if (error) {
-        showToast(`Failed to send code: ${error.message}`, 'error')
+        // Check for specific error types
+        if (error.message.includes('User not found') || error.message.includes('Invalid login credentials')) {
+          showToast('Not invited. Ask admin to add your email.', 'error')
+        } else {
+          showToast(`Failed to send code: ${error.message}`, 'error')
+        }
       } else {
         // Store email in localStorage
         localStorage.setItem('lot-logger-last-email', email)
@@ -100,14 +105,14 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <div className="w-full max-w-sm space-y-8">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+          <h1 className="text-2xl font-bold text-foreground mb-2">
             Sign in
           </h1>
-          <p className="text-gray-600 dark:text-gray-300 text-sm">
+          <p className="text-muted-foreground text-sm">
             {step === 'email' ? "We'll email you a login code." : "Enter the 6-digit code we sent to your email."}
           </p>
         </div>
@@ -129,7 +134,7 @@ export default function AuthPage() {
         {step === 'email' && (
           <form onSubmit={handleSendCode} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
                 Email address
               </label>
               <input
@@ -138,7 +143,7 @@ export default function AuthPage() {
                 type="email"
                 autoComplete="email"
                 required
-                className="w-full px-4 py-4 text-lg bg-white text-gray-900 placeholder:text-gray-500 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 border border-gray-300 dark:border-gray-600 rounded-xl transition-all"
+                className="w-full px-4 py-4 text-lg bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-blue-600 border border-gray-300 dark:border-gray-600 rounded-xl transition-all min-h-[44px]"
                 placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -171,7 +176,7 @@ export default function AuthPage() {
         {step === 'code' && (
           <form onSubmit={handleVerifyCode} className="space-y-6">
             <div>
-              <label htmlFor="code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="code" className="block text-sm font-medium text-foreground mb-2">
                 6-digit code
               </label>
               <input
@@ -182,7 +187,7 @@ export default function AuthPage() {
                 pattern="[0-9]{6}"
                 maxLength={6}
                 required
-                className="w-full px-4 py-4 text-2xl text-center tracking-widest bg-white text-gray-900 placeholder:text-gray-500 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 border border-gray-300 dark:border-gray-600 rounded-xl transition-all font-mono"
+                className="w-full px-4 py-4 text-2xl text-center tracking-widest bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-blue-600 border border-gray-300 dark:border-gray-600 rounded-xl transition-all font-mono min-h-[44px]"
                 placeholder="123456"
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -215,7 +220,7 @@ export default function AuthPage() {
                 type="button"
                 onClick={handleBackToEmail}
                 disabled={loading}
-                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50 transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
               >
                 ← Back to email
               </button>
@@ -225,7 +230,7 @@ export default function AuthPage() {
 
         {/* Help Text */}
         <div className="text-center">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-muted-foreground">
             No password required • Secure OTP authentication
           </p>
         </div>
