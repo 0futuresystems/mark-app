@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { getSyncQueueStatus } from '@/lib/supabaseSync'
-import { Menu, X, Sync, Plus, LogOut, Home } from 'lucide-react'
+import { Menu, X, RefreshCw, Plus, LogOut } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AppHeader() {
@@ -168,7 +168,7 @@ export default function AppHeader() {
                 className="w-full flex items-center space-x-3 px-4 py-4 text-left hover:bg-brand-bg transition-all duration-150 transform hover:scale-[1.02] border-b border-brand-border"
               >
                 <div className="w-10 h-10 bg-brand-accent rounded-xl flex items-center justify-center">
-                  <Sync className="w-5 h-5 text-white" />
+                  <RefreshCw className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <p className="text-base font-medium text-brand-text">Sync</p>
