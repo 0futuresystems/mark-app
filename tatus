@@ -1,0 +1,53 @@
+[1mdiff --git a/app/layout.tsx b/app/layout.tsx[m
+[1mindex dc26efb..126f03e 100644[m
+[1m--- a/app/layout.tsx[m
+[1m+++ b/app/layout.tsx[m
+[36m@@ -26,11 +26,11 @@[m [mexport default function RootLayout({[m
+         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />[m
+         <meta name="apple-mobile-web-app-title" content="Lot Logger" />[m
+         <meta name="mobile-web-app-capable" content="yes" />[m
+[31m-        <meta name="theme-color" content="#0b132b" />[m
+[32m+[m[32m        <meta name="theme-color" content="#2563eb" />[m
+       </head>[m
+ [m
+       {/* Apply Tailwind baseline to body; keep your font vars */}[m
+[31m-      <body className={`${geistSans.variable} ${geistMono.variable} bg-brand-bg text-slate-100 antialiased`}>[m
+[32m+[m[32m      <body className={`${geistSans.variable} ${geistMono.variable} bg-brand-bg text-brand-text antialiased`}>[m
+         <ToastProvider>[m
+           <SyncSetup />[m
+           <AuthProvider>[m
+[1mdiff --git a/tailwind.config.js b/tailwind.config.js[m
+[1mindex e0e1cd0..959b3ac 100644[m
+[1m--- a/tailwind.config.js[m
+[1m+++ b/tailwind.config.js[m
+[36m@@ -9,7 +9,17 @@[m [mmodule.exports = {[m
+     theme: {[m
+       extend: {[m
+         colors: {[m
+[31m-          brand: { bg: "#0b132b", panel: "#0e1117" },[m
+[32m+[m[32m          brand: {[m[41m [m
+[32m+[m[32m            bg: "#fafafa",[m[41m [m
+[32m+[m[32m            panel: "#ffffff",[m
+[32m+[m[32m            accent: "#2563eb",[m
+[32m+[m[32m            "accent-hover": "#1d4ed8",[m
+[32m+[m[32m            text: "#1f2937",[m
+[32m+[m[32m            "text-muted": "#6b7280",[m
+[32m+[m[32m            border: "#e5e7eb",[m
+[32m+[m[32m            success: "#059669",[m
+[32m+[m[32m            error: "#dc2626"[m
+[32m+[m[32m          },[m
+         },[m
+         fontSize: {[m
+           base: ["18px", "1.6"],[m
+[36m@@ -19,7 +29,10 @@[m [mmodule.exports = {[m
+           "3xl":["32px", "1.15"],[m
+         },[m
+         borderRadius: { "2xl": "1rem" },[m
+[31m-        boxShadow: { soft: "0 10px 30px rgba(0,0,0,0.35)" },[m
+[32m+[m[32m        boxShadow: {[m[41m [m
+[32m+[m[32m          soft: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",[m
+[32m+[m[32m          medium: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"[m
+[32m+[m[32m        },[m
+       },[m
+     },[m
+     plugins: [[m

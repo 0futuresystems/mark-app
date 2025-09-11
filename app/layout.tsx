@@ -26,11 +26,11 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Lot Logger" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="theme-color" content="#0b132b" />
+        <meta name="theme-color" content="#2563eb" />
       </head>
 
       {/* Apply Tailwind baseline to body; keep your font vars */}
-      <body className={`${geistSans.variable} ${geistMono.variable} bg-brand-bg text-slate-100 antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} bg-brand-bg text-brand-text antialiased`}>
         <ToastProvider>
           <SyncSetup />
           <AuthProvider>

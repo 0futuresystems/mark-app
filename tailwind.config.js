@@ -9,7 +9,17 @@ module.exports = {
     theme: {
       extend: {
         colors: {
-          brand: { bg: "#0b132b", panel: "#0e1117" },
+          brand: { 
+            bg: "#fafafa", 
+            panel: "#ffffff",
+            accent: "#2563eb",
+            "accent-hover": "#1d4ed8",
+            text: "#1f2937",
+            "text-muted": "#6b7280",
+            border: "#e5e7eb",
+            success: "#059669",
+            error: "#dc2626"
+          },
         },
         fontSize: {
           base: ["18px", "1.6"],
@@ -19,7 +29,10 @@ module.exports = {
           "3xl":["32px", "1.15"],
         },
         borderRadius: { "2xl": "1rem" },
-        boxShadow: { soft: "0 10px 30px rgba(0,0,0,0.35)" },
+        boxShadow: { 
+          soft: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+          medium: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
+        },
       },
     },
     plugins: [
