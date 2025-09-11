@@ -1,18 +1,18 @@
-'use client'
+'use client';
 
-import { create } from 'zustand'
+import { create } from 'zustand';
 
 interface SyncState {
-  isOnline: boolean
-  isSyncing: boolean
-  lastSyncTime: Date | null
-  syncError: string | null
-  pendingUploads: number
-  setOnline: (online: boolean) => void
-  setSyncing: (syncing: boolean) => void
-  setLastSyncTime: (time: Date | null) => void
-  setSyncError: (error: string | null) => void
-  setPendingUploads: (count: number) => void
+  isOnline: boolean;
+  isSyncing: boolean;
+  lastSyncTime: Date | null;
+  syncError: string | null;
+  pendingUploads: number;
+  setOnline: (online: boolean) => void;
+  setSyncing: (syncing: boolean) => void;
+  setLastSyncTime: (time: Date | null) => void;
+  setSyncError: (error: string | null) => void;
+  setPendingUploads: (count: number) => void;
 }
 
 export const useSyncStore = create<SyncState>((set) => ({
@@ -21,9 +21,9 @@ export const useSyncStore = create<SyncState>((set) => ({
   lastSyncTime: null,
   syncError: null,
   pendingUploads: 0,
-  setOnline: (online) => set({ isOnline: online }),
-  setSyncing: (syncing) => set({ isSyncing: syncing }),
-  setLastSyncTime: (time) => set({ lastSyncTime: time }),
-  setSyncError: (error) => set({ syncError: error }),
-  setPendingUploads: (count) => set({ pendingUploads: count }),
-}))
+  setOnline: (isOnline) => set({ isOnline }),
+  setSyncing: (isSyncing) => set({ isSyncing }),
+  setLastSyncTime: (lastSyncTime) => set({ lastSyncTime }),
+  setSyncError: (syncError) => set({ syncError }),
+  setPendingUploads: (pendingUploads) => set({ pendingUploads }),
+}));
