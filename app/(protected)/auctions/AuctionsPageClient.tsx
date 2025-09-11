@@ -136,7 +136,7 @@ export default function AuctionsPageClient() {
     try {
       await setCurrentAuctionId(auctionId);
       setCurrentAuctionIdState(auctionId);
-      router.push('/');
+      router.push('/'); // Redirect to home page (dashboard)
     } catch (error) {
       console.error('Error selecting auction:', error);
     }

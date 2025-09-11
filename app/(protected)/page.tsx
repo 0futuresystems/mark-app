@@ -39,10 +39,10 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h1 className="text-2xl font-semibold text-gray-900">Loading...</h1>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-accent mx-auto mb-4"></div>
+          <h1 className="text-2xl font-semibold text-brand-text">Loading...</h1>
         </div>
       </div>
     );
@@ -61,11 +61,11 @@ export default function Home() {
       </div>
 
       {/* Current Auction Card */}
-      <div className="bg-brand-panel rounded-2xl p-4 sm:p-6 shadow-soft border border-gray-700">
+      <div className="bg-brand-panel rounded-2xl p-4 sm:p-6 shadow-soft border border-brand-border">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                <div className="w-2 h-2 bg-brand-accent rounded-full"></div>
                 <h2 className="text-lg font-semibold text-brand-text truncate">
                   Current auction: {currentAuction.name}
                 </h2>
@@ -76,7 +76,7 @@ export default function Home() {
             </div>
             <Link 
               href="/auctions" 
-              className="flex-shrink-0 px-4 py-2 text-sm font-medium text-blue-400 hover:text-blue-300 hover:bg-gray-800/50 rounded-lg transition-colors"
+              className="flex-shrink-0 px-4 py-2 text-sm font-medium text-brand-accent hover:text-brand-accent-hover hover:bg-gray-50 rounded-lg transition-colors"
             >
               Change
             </Link>
@@ -86,12 +86,12 @@ export default function Home() {
       {/* Main Actions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Link 
-            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-gray-700 hover:shadow-soft hover:border-gray-600 transition-all group"
+            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-gray-300 transition-all group"
             href="/new"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-brand-text">New Entry</h3>
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
                 <Plus className="w-4 h-4 text-white" />
               </div>
             </div>
@@ -99,12 +99,12 @@ export default function Home() {
           </Link>
           
           <Link 
-            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-gray-700 hover:shadow-soft hover:border-gray-600 transition-all group"
+            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-gray-300 transition-all group"
             href="/review"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-brand-text">Review Data</h3>
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
                 <Eye className="w-4 h-4 text-white" />
               </div>
             </div>
@@ -112,12 +112,12 @@ export default function Home() {
           </Link>
           
           <Link 
-            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-gray-700 hover:shadow-soft hover:border-gray-600 transition-all group"
+            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-gray-300 transition-all group"
             href="/send"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-brand-text">Send Data</h3>
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
                 <Send className="w-4 h-4 text-white" />
               </div>
             </div>
