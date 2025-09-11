@@ -1,5 +1,5 @@
 import AuthGuard from "@/src/components/AuthGuard";
-import Header from "@/src/components/Header";
+import AppHeader from "@/src/components/AppHeader";
 
 export default function ProtectedLayout({
   children,
@@ -8,11 +8,13 @@ export default function ProtectedLayout({
 }) {
   return (
     <AuthGuard>
-      {/* Centered, readable content area with larger padding for Mark */}
-      <main className="mx-auto max-w-xl p-5 pb-24 space-y-6">
-        <Header />
-        {children}
-      </main>
+      <div className="min-h-screen bg-brand-bg">
+        <AppHeader />
+        {/* Centered, readable content area with larger padding for Mark */}
+        <main className="mx-auto max-w-xl p-5 pb-24 space-y-6">
+          {children}
+        </main>
+      </div>
     </AuthGuard>
   );
 }

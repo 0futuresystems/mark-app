@@ -23,6 +23,9 @@ export default function SendPage() {
   const [uploadResult, setUploadResult] = useState<{success: number; failed: number; skipped: number; errors: string[]} | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{current: number; total: number; label: string} | null>(null);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailAddress, setEmailAddress] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
 
   // Load current auction on mount
   useEffect(() => {
@@ -269,6 +272,142 @@ export default function SendPage() {
     }
   };
 
+  const downloadCSVWithMediaLinks = async () => {
+    try {
+      setExporting(true);
+      setExportProgress({ current: 0, total: 2, label: 'Preparing CSV export...' });
+      
+      const currentAuction = await getCurrentAuction();
+      const auctionName = currentAuction?.name || 'Unknown';
+      
+      // Prepare data for CSV export
+      const exportData = {
+        lots: lots.map(lot => ({
+          id: lot.id,
+          number: lot.number,
+          auctionId: lot.auctionId,
+          auctionName: auctionName,
+          status: lot.status,
+          createdAt: lot.createdAt.toISOString()
+        })),
+        media: media.map(mediaItem => ({
+          id: mediaItem.id,
+          lotId: mediaItem.lotId,
+          type: mediaItem.type,
+          index: mediaItem.index,
+          uploaded: mediaItem.uploaded,
+          remotePath: mediaItem.remotePath
+        }))
+      };
+      
+      setExportProgress({ current: 1, total: 2, label: 'Generating CSV with signed URLs...' });
+      
+      // Call the CSV export API
+      const response = await fetch('/api/export/csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(exportData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`CSV export failed: ${response.statusText}`);
+      }
+      
+      // Get the CSV content
+      const csvContent = await response.text();
+      
+      // Download the CSV file
+      const today = new Date().toISOString().split('T')[0];
+      const fileName = `lots_${auctionName.replace(/[^a-zA-Z0-9]/g, '_')}_with_media_${today}.csv`;
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setExportProgress({ current: 2, total: 2, label: 'Download complete!' });
+      
+    } catch (error) {
+      console.error('Error downloading CSV:', error);
+      alert('Failed to download CSV. Please try again.');
+    } finally {
+      setExporting(false);
+      setExportProgress(null);
+    }
+  };
+
+  const sendEmailPackage = async () => {
+    if (!emailAddress.trim()) {
+      alert('Please enter an email address');
+      return;
+    }
+    
+    try {
+      setEmailSending(true);
+      
+      const currentAuction = await getCurrentAuction();
+      const auctionName = currentAuction?.name || 'Unknown';
+      
+      // Prepare data for email export
+      const exportData = {
+        lots: lots.map(lot => ({
+          id: lot.id,
+          number: lot.number,
+          auctionId: lot.auctionId,
+          auctionName: auctionName,
+          status: lot.status,
+          createdAt: lot.createdAt.toISOString()
+        })),
+        media: media.map(mediaItem => ({
+          id: mediaItem.id,
+          lotId: mediaItem.lotId,
+          type: mediaItem.type,
+          index: mediaItem.index,
+          uploaded: mediaItem.uploaded,
+          remotePath: mediaItem.remotePath
+        })),
+        email: emailAddress.trim()
+      };
+      
+      // Call the email export API
+      const response = await fetch('/api/export/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(exportData)
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Email sending failed');
+      }
+      
+      if (result.mock) {
+        alert('Email service not configured (RESEND_API_KEY missing). This is a mock response.');
+      } else {
+        alert('Email sent successfully! Check your inbox for the CSV file.');
+      }
+      
+      setEmailModalOpen(false);
+      setEmailAddress('');
+      
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   const handleUploadAndExport = async () => {
     const incompleteLots = getLotsWithWarnings();
     
@@ -448,18 +587,60 @@ export default function SendPage() {
         {allUploaded ? (
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-8 text-center mb-8">
             <h2 className="text-emerald-800 font-semibold mb-2">All uploaded ✓</h2>
-            <p className="text-emerald-700 mb-4">All media has been successfully uploaded.</p>
-            <button
-              onClick={exportDataWithMedia}
-              disabled={exporting}
-              className={`inline-flex items-center px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
-                exporting
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md'
-              }`}
-            >
-              {exporting ? 'Exporting...' : 'Export Data with Media (ZIP)'}
-            </button>
+            <p className="text-emerald-700 mb-6">All media has been successfully uploaded.</p>
+            
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={downloadCSVWithMediaLinks}
+                  disabled={exporting}
+                  className={`inline-flex items-center px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                    exporting
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md'
+                  }`}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {exporting ? 'Exporting...' : 'Download CSV (with media links)'}
+                </button>
+                
+                <button
+                  onClick={() => setEmailModalOpen(true)}
+                  disabled={exporting}
+                  className={`inline-flex items-center px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                    exporting
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md'
+                  }`}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Email package
+                </button>
+              </div>
+              
+              <div className="text-center">
+                <span className="text-gray-500 text-sm">or</span>
+              </div>
+              
+              <button
+                onClick={exportDataWithMedia}
+                disabled={exporting}
+                className={`inline-flex items-center px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  exporting
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-600 text-white hover:bg-gray-700 shadow-sm hover:shadow-md'
+                }`}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+                {exporting ? 'Exporting...' : 'Export Data with Media (ZIP)'}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8 space-y-4">
@@ -474,6 +655,42 @@ export default function SendPage() {
             >
               {uploading ? 'Uploading...' : exporting ? 'Exporting...' : 'Upload Pending & Export Data (ZIP)'}
             </button>
+            
+            <div className="text-center">
+              <span className="text-gray-500 text-sm">or</span>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={downloadCSVWithMediaLinks}
+                disabled={exporting}
+                className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all duration-200 ${
+                  exporting
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md'
+                }`}
+              >
+                <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                {exporting ? 'Exporting...' : 'Download CSV (with media links)'}
+              </button>
+              
+              <button
+                onClick={() => setEmailModalOpen(true)}
+                disabled={exporting}
+                className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all duration-200 ${
+                  exporting
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm hover:shadow-md'
+                }`}
+              >
+                <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Email package
+              </button>
+            </div>
             
             <div className="text-center">
               <span className="text-gray-500 text-sm">or</span>
@@ -511,6 +728,57 @@ export default function SendPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Email Modal */}
+        {emailModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Email Package</h3>
+              <p className="text-gray-600 mb-4">
+                Enter an email address to receive a CSV file with all lot data and signed media URLs.
+              </p>
+              
+              <div className="mb-6">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={emailAddress}
+                  onChange={(e) => setEmailAddress(e.target.value)}
+                  placeholder="your@email.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={emailSending}
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setEmailModalOpen(false);
+                    setEmailAddress('');
+                  }}
+                  disabled={emailSending}
+                  className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={sendEmailPackage}
+                  disabled={emailSending || !emailAddress.trim()}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    emailSending || !emailAddress.trim()
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  {emailSending ? 'Sending...' : 'Send Email'}
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -148,27 +148,24 @@ export default function AuctionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <button 
-              onClick={() => router.push('/')}
-              className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Auctions</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your auctions</p>
-            </div>
-          </div>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex items-center space-x-4">
+        <button 
+          onClick={() => router.push('/')}
+          className="w-10 h-10 bg-brand-panel rounded-full flex items-center justify-center shadow-soft border border-gray-700 hover:border-gray-600 transition-all"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-400" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Auctions</h1>
+          <p className="text-gray-400 mt-1">Manage your auctions</p>
         </div>
+      </div>
 
-        {/* Create New Auction */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Create New Auction</h2>
+      {/* Create New Auction */}
+      <div className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-gray-700">
+          <h2 className="text-lg font-semibold text-white mb-4">Create New Auction</h2>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <input
               type="text"
