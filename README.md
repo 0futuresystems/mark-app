@@ -19,6 +19,30 @@ A minimal Next.js PWA (Progressive Web App) designed for iPhone Home-Screen use.
 - **Compression**: JSZip
 - **Linting**: ESLint
 
+## Environment & Console Setup
+
+### Environment Variables
+Copy `.env.example` to `.env.local` and fill in the required values:
+- `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+- `R2_ACCOUNT_ID`: Cloudflare R2 account ID
+- `R2_ACCESS_KEY_ID`: Cloudflare R2 access key
+- `R2_SECRET_ACCESS_KEY`: Cloudflare R2 secret key
+- `R2_BUCKET`: R2 bucket name (default: mark-app)
+- `RESEND_API_KEY`: Resend API key for email functionality
+
+### Supabase Configuration
+1. **Auth Email Template**: In Supabase Auth settings, update the "Confirm sign in" email template to show ONLY: `Your sign-in code: {{ .Token }}` (remove `{{ .ActionLink }}`)
+2. **Public Signups**: Disable public signups in Supabase Auth settings
+3. **Site URL**: Set Site URL to your Vercel domain in Supabase Auth settings
+
+### Cloudflare R2 CORS Configuration
+Configure R2 bucket CORS with:
+- **AllowedOrigins**: Your Vercel URL + `http://localhost:3000`
+- **Methods**: `GET, PUT, HEAD, OPTIONS`
+- **Headers**: `*`
+- **Expose**: `ETag, Content-Length`
+
 ## Getting Started
 
 1. Install dependencies:
