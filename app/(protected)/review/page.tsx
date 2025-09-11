@@ -5,6 +5,7 @@ import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import { uid } from '../../../src/lib/id';
 import { saveMediaBlob, deleteMediaBlob, deleteMediaCompletely } from '../../../src/lib/blobStore';
+import { updatePhotoOrder } from '../../../src/lib/mediaOps';
 import { downscaleImage } from '@/lib/files';
 import AudioRecorder from '../../../src/components/AudioRecorder';
 import AudioPlayer from '../../../src/components/AudioPlayer';
@@ -13,10 +14,13 @@ import { useRouter } from 'next/navigation';
 import CameraCapture from '../../../src/components/CameraCapture';
 import LotThumbnail from '../../../src/components/LotThumbnail';
 import LightboxCarousel from '../../../src/components/LightboxCarousel';
+import PhotoGrid from '../../../src/components/PhotoGrid';
 import { ArrowLeft, Trash2, Plus, CheckCircle, AlertCircle } from 'lucide-react';
+import { useToast } from '../../../src/contexts/ToastContext';
 
 export default function ReviewPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [currentAuctionId, setCurrentAuctionId] = useState<string | null>(null);
   const [lots, setLots] = useState<Lot[]>([]);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
@@ -227,6 +231,8 @@ export default function ReviewPage() {
       // Delete from database
       await deleteMediaCompletely(mediaId);
       
+      showToast('Photo deleted successfully', 'success');
+      
       // If this was the last photo, close the lightbox
       const photos = lotMedia.filter(m => m.type === 'photo' && m.id !== mediaId);
       if (photos.length === 0) {
@@ -234,6 +240,27 @@ export default function ReviewPage() {
       }
     } catch (error) {
       console.error('Error deleting photo:', error);
+      showToast('Failed to delete photo. Please try again.', 'error');
+      // Revert optimistic update on error
+      loadLotMedia(selectedLot!.id);
+    }
+  };
+
+  const handlePhotoReorder = async (newOrder: MediaItem[]) => {
+    try {
+      // Optimistically update local state
+      setLotMedia(prev => {
+        const nonPhotos = prev.filter(m => m.type !== 'photo');
+        return [...nonPhotos, ...newOrder];
+      });
+      
+      // Update database
+      await updatePhotoOrder(newOrder);
+      
+      showToast('Photos reordered successfully', 'success');
+    } catch (error) {
+      console.error('Error reordering photos:', error);
+      showToast('Failed to reorder photos. Please try again.', 'error');
       // Revert optimistic update on error
       loadLotMedia(selectedLot!.id);
     }
@@ -500,66 +527,13 @@ export default function ReviewPage() {
                 <CameraCapture onFiles={handleAddPhotos} />
               </div>
               
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-                {lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index).map((photo, index) => (
-                  <div key={photo.id} className="relative group">
-                    {/* Photo thumbnail with click to view */}
-                    <div 
-                      className="cursor-pointer transform transition-all duration-150 hover:scale-105"
-                      onClick={() => openLightbox(index)}
-                    >
-                      <LotThumbnail mediaItem={photo} size="medium" className="w-full" />
-                    </div>
-                    
-                    {/* Overlay with controls - More prominent styling */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition-all duration-300 rounded-lg flex items-center justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col space-y-1">
-                        <div className="flex space-x-1 justify-center">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              movePhoto(photo.id, 'up');
-                            }}
-                            disabled={index === 0}
-                            className="p-2 bg-brand-accent rounded-lg text-white hover:bg-brand-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-150 hover:scale-110 active:scale-95"
-                            title="Move up"
-                          >
-                            ↑
-                          </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              movePhoto(photo.id, 'down');
-                            }}
-                            disabled={index === lotMedia.filter(m => m.type === 'photo').length - 1}
-                            className="p-2 bg-brand-accent rounded-lg text-white hover:bg-brand-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-150 hover:scale-110 active:scale-95"
-                            title="Move down"
-                          >
-                            ↓
-                          </button>
-                        </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('Delete this photo? This action cannot be undone.')) {
-                              handlePhotoDelete(photo.id);
-                            }
-                          }}
-                          className="px-3 py-2 bg-red-500 rounded-lg text-white hover:bg-red-600 font-medium text-sm transform transition-all duration-150 hover:scale-110 active:scale-95 shadow-soft"
-                          title="Delete photo"
-                        >
-                          <Trash2 className="w-4 h-4 mx-auto" />
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Photo index indicator */}
-                    <div className="absolute top-2 left-2 bg-brand-accent text-white text-sm px-2 py-1 rounded-lg font-medium shadow-soft">
-                      #{photo.index}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <PhotoGrid
+                photos={lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index)}
+                onReorder={handlePhotoReorder}
+                onDelete={handlePhotoDelete}
+                onMove={movePhoto}
+                onOpenLightbox={openLightbox}
+              />
             </div>
 
             {/* Main Voice Section */}
