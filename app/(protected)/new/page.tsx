@@ -24,6 +24,9 @@ export default function NewLotPage() {
   const [dimensionsVoice, setDimensionsVoice] = useState<MediaItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; label: string } | null>(null);
+  const [finishingLot, setFinishingLot] = useState(false);
 
   // Cleanup function to delete incomplete lot and its media
   const cleanupIncompleteLot = async (lotToCleanup: Lot) => {
@@ -122,6 +125,9 @@ export default function NewLotPage() {
     if (!currentAuctionId) return;
 
     try {
+      setUploadingPhotos(true);
+      setUploadProgress({ current: 0, total: files.length, label: 'Processing photos...' });
+      
       // Ensure lot exists (create if this is the first media)
       const currentLot = await ensureLotExists();
       if (!currentLot) return;
@@ -129,6 +135,12 @@ export default function NewLotPage() {
       const newPhotos: MediaItem[] = [];
       
       for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ 
+          current: i + 1, 
+          total: files.length, 
+          label: `Processing photo ${i + 1} of ${files.length}...` 
+        });
+        
         const file = files[i];
         const resizedFile = await downscaleImage(file);
         
@@ -150,8 +162,13 @@ export default function NewLotPage() {
       }
       
       setPhotos(prev => [...prev, ...newPhotos]);
+      setToast({ message: `Captured: ${files.length} photos`, type: 'success' });
     } catch (error) {
       console.error('Error processing photos:', error);
+      setToast({ message: 'Failed to process photos. Please try again.', type: 'error' });
+    } finally {
+      setUploadingPhotos(false);
+      setUploadProgress(null);
     }
   };
 
@@ -233,18 +250,27 @@ export default function NewLotPage() {
     }
     
     try {
+      setFinishingLot(true);
+      setUploadProgress({ current: 0, total: 3, label: 'Finishing lot...' });
+      
       // Mark current lot as complete
       if (lot) {
+        setUploadProgress({ current: 1, total: 3, label: 'Saving lot data...' });
         await db.lots.update(lot.id, { status: 'complete' });
         console.log('Marked lot as complete:', lot.id, lot.number);
         
-        // Sync to Supabase
-        await upsertLot({ 
+        setUploadProgress({ current: 2, total: 3, label: 'Syncing to cloud...' });
+        // Sync to Supabase (non-blocking)
+        upsertLot({ 
           id: lot.id, 
           auctionId: lot.auctionId, 
           number: lot.number, 
           status: 'complete' 
+        }).catch(error => {
+          console.warn('Background sync failed, will retry later:', error);
         });
+        
+        setUploadProgress({ current: 3, total: 3, label: 'Complete!' });
         
         // Show success toast
         setToast({ message: `Lot #${lot.number} saved`, type: 'success' });
@@ -254,8 +280,8 @@ export default function NewLotPage() {
           navigator.vibrate(30);
         }
         
-        // Wait a moment to ensure all operations complete
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Brief delay to show completion
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       
       // Reset state for next lot (but don't create it yet)
@@ -271,6 +297,9 @@ export default function NewLotPage() {
     } catch (error) {
       console.error('Error finishing lot:', error);
       setToast({ message: 'Failed to save lot. Please try again.', type: 'error' });
+    } finally {
+      setFinishingLot(false);
+      setUploadProgress(null);
     }
   };
 
@@ -311,6 +340,27 @@ export default function NewLotPage() {
             </div>
           </div>
         </div>
+        
+        {/* Upload Progress Indicator */}
+        {uploadProgress && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent"></div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-900">{uploadProgress.label}</p>
+                <div className="mt-1 bg-blue-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              <span className="text-sm text-blue-700">
+                {uploadProgress.current}/{uploadProgress.total}
+              </span>
+            </div>
+          </div>
+        )}
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Photos Section */}
@@ -408,13 +458,18 @@ export default function NewLotPage() {
           <button
             onClick={handleFinishLot}
             className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-200 ${
-              canFinish
+              canFinish && !finishingLot
                 ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
-            disabled={!canFinish}
+            disabled={!canFinish || finishingLot}
           >
-            {canFinish ? (
+            {finishingLot ? (
+              <div className="flex items-center justify-center space-x-2">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-400 border-t-transparent"></div>
+                <span>Finishing...</span>
+              </div>
+            ) : canFinish ? (
               <div className="flex items-center justify-center space-x-2">
                 <CheckCircle className="w-5 h-5" />
                 <span>Finish Lot & Continue</span>

@@ -18,6 +18,11 @@ export interface UploadResult {
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Configuration for upload optimization
+const MAX_CONCURRENT_UPLOADS = 3; // Upload up to 3 files simultaneously
+const UPLOAD_TIMEOUT = 30000; // 30 second timeout per upload
+const RETRY_DELAY = 1000; // 1 second delay between retries
+
 // Helper function to extract media metadata
 async function extractMediaMetadata(blob: Blob, mediaType: string): Promise<{
   bytes: number;
@@ -80,6 +85,156 @@ async function extractMediaMetadata(blob: Blob, mediaType: string): Promise<{
   }
 
   return metadata;
+}
+
+// Upload a single media item with timeout and retry logic
+async function uploadSingleMedia(media: any, onProgress?: (info: UploadProgress) => void): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT);
+  
+  try {
+    const blob = await getMediaBlob(media.id);
+    if (!blob) {
+      console.warn(`No blob found for media ${media.id}`);
+      return false;
+    }
+
+    // Generate unique key for this upload
+    const lot = await db.lots.get(media.lotId);
+    if (!lot) {
+      console.warn(`Lot not found for media ${media.id}`);
+      return false;
+    }
+
+    const key = `Lot-${lot.number}/${media.type}/${media.id}`;
+    let uploadSuccess = false;
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        // Request presigned URL from API
+        const signResponse = await fetch('/api/sign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+          signal: controller.signal
+        });
+
+        if (!signResponse.ok) {
+          throw new Error(`Failed to get presigned URL: ${signResponse.statusText}`);
+        }
+
+        const { url } = await signResponse.json();
+
+        // Upload the file
+        const uploadResponse = await fetch(url, {
+          method: 'PUT',
+          body: blob,
+          headers: {
+            'Content-Type': blob.type,
+          },
+          signal: controller.signal
+        });
+
+        if (uploadResponse.ok) {
+          // Extract media metadata
+          const metadata = await extractMediaMetadata(blob, media.type);
+          
+          // Mark as uploaded and store remote path and metadata
+          await db.media.update(media.id, { 
+            uploaded: true, 
+            remotePath: key,
+            bytes: metadata.bytes,
+            width: metadata.width,
+            height: metadata.height,
+            duration: metadata.duration,
+            needsSync: true // Mark for Supabase sync
+          });
+          
+          // Sync to Supabase (non-blocking)
+          try {
+            const kind = media.type === 'photo' ? 'photo' : 'audio';
+            await upsertMedia({
+              id: media.id,
+              lotId: media.lotId,
+              kind,
+              r2Key: key,
+              bytes: metadata.bytes,
+              width: metadata.width,
+              height: metadata.height,
+              duration: metadata.duration,
+              indexInLot: media.index
+            });
+            
+            // Mark as synced
+            await db.media.update(media.id, { needsSync: false });
+          } catch (syncError) {
+            console.warn(`Failed to sync media ${media.id} to Supabase:`, syncError);
+            // Keep needsSync flag for retry later
+          }
+          
+          uploadSuccess = true;
+          console.log(`Successfully uploaded ${media.id}`);
+          break;
+        } else {
+          throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+        }
+        
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          throw new Error('Upload timeout');
+        }
+        
+        console.error(`Upload attempt ${attempt} failed for ${media.id}:`, error);
+        
+        if (attempt < 2) {
+          // Wait before retry
+          await delay(RETRY_DELAY);
+        }
+      }
+    }
+    
+    return uploadSuccess;
+  } catch (error) {
+    console.error(`Error uploading media ${media.id}:`, error);
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// Upload media items in parallel batches
+async function uploadBatch(mediaItems: any[], onProgress?: (info: UploadProgress) => void): Promise<{ success: number; failed: number }> {
+  let success = 0;
+  let failed = 0;
+  
+  // Process in batches of MAX_CONCURRENT_UPLOADS
+  for (let i = 0; i < mediaItems.length; i += MAX_CONCURRENT_UPLOADS) {
+    const batch = mediaItems.slice(i, i + MAX_CONCURRENT_UPLOADS);
+    
+    // Upload all items in the batch in parallel
+    const results = await Promise.allSettled(
+      batch.map(media => uploadSingleMedia(media, onProgress))
+    );
+    
+    // Count results
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value) {
+        success++;
+      } else {
+        failed++;
+        console.error(`Failed to upload media ${batch[index].id}:`, result.status === 'rejected' ? result.reason : 'Unknown error');
+      }
+    });
+    
+    // Update progress
+    onProgress?.({
+      done: i + batch.length,
+      total: mediaItems.length,
+      label: `Uploaded ${i + batch.length} of ${mediaItems.length} files`
+    });
+  }
+  
+  return { success, failed };
 }
 
 export async function syncPending(

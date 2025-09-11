@@ -3,8 +3,9 @@ import { Auction, Lot, MediaItem } from '../types'
 
 // Retry configuration
 const MAX_RETRIES = 3
-const INITIAL_DELAY = 5000 // 5 seconds
+const INITIAL_DELAY = 10000 // 10 seconds (increased to reduce frequency)
 const MAX_DELAY = 300000 // 5 minutes
+const TOAST_COOLDOWN = 30000 // 30 seconds between toast notifications
 
 // Queue for failed sync operations
 const syncQueue: Array<() => Promise<void>> = []
@@ -12,15 +13,20 @@ const syncQueue: Array<() => Promise<void>> = []
 // Toast notification function (will be set by the app)
 let showToast: ((message: string, type: 'success' | 'error') => void) | null = null
 
+// Track last toast time to prevent spam
+let lastToastTime = 0
+
 export function setSyncToastHandler(handler: (message: string, type: 'success' | 'error') => void) {
   showToast = handler
 }
 
-// Helper function to show toast notifications
+// Helper function to show toast notifications with cooldown
 function notifyToast(message: string, type: 'success' | 'error') {
-  if (showToast) {
+  const now = Date.now()
+  if (showToast && (now - lastToastTime > TOAST_COOLDOWN || type === 'success')) {
     showToast(message, type)
-  } else {
+    lastToastTime = now
+  } else if (!showToast) {
     console.log(`Toast: ${type.toUpperCase()} - ${message}`)
   }
 }
