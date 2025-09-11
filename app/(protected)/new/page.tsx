@@ -309,32 +309,32 @@ export default function NewLotPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h1 className="text-2xl font-semibold text-gray-900">Loading...</h1>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-accent mx-auto mb-4"></div>
+          <h1 className="text-2xl font-semibold text-brand-text">Loading...</h1>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-brand-bg py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 space-y-4 sm:space-y-0">
           <div className="flex items-center space-x-4">
             <button 
               onClick={handleBack}
-              className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+              className="w-12 h-12 bg-brand-panel rounded-xl flex items-center justify-center hover:bg-brand-border transition-all duration-150 transform hover:scale-105 active:scale-95 shadow-soft"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
+              <ArrowLeft className="w-6 h-6 text-brand-text" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-2xl sm:text-3xl font-bold text-brand-text">
                 {lot ? `Lot #${lot.number.toString().padStart(3, '0')}` : 'New Lot'}
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-brand-text-muted mt-1">
                 {lot ? 'Complete the required steps to finish your lot' : 'Add your first photo to start'}
               </p>
             </div>
@@ -343,19 +343,19 @@ export default function NewLotPage() {
         
         {/* Upload Progress Indicator */}
         {uploadProgress && (
-          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="mb-6 bg-brand-panel border border-brand-border rounded-2xl p-4 shadow-soft">
             <div className="flex items-center space-x-3">
-              <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent"></div>
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-brand-accent border-t-transparent"></div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-blue-900">{uploadProgress.label}</p>
-                <div className="mt-1 bg-blue-200 rounded-full h-2">
+                <p className="text-sm font-medium text-brand-text">{uploadProgress.label}</p>
+                <div className="mt-1 bg-gray-200 rounded-full h-2">
                   <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-brand-accent h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
                   ></div>
                 </div>
               </div>
-              <span className="text-sm text-blue-700">
+              <span className="text-sm text-brand-text-muted">
                 {uploadProgress.current}/{uploadProgress.total}
               </span>
             </div>
@@ -364,10 +364,10 @@ export default function NewLotPage() {
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Photos Section */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Photos</h2>
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <h2 className="text-lg font-semibold text-brand-text">Photos</h2>
+              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
                 <Camera className="w-4 h-4 text-white" />
               </div>
             </div>
@@ -377,16 +377,16 @@ export default function NewLotPage() {
             </div>
             
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">
-                Captured: <span className={photos.length > 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>{photos.length}</span>
+              <span className="text-sm text-brand-text-muted">
+                Captured: <span className={photos.length > 0 ? 'text-brand-success font-semibold' : 'text-brand-error font-semibold'}>{photos.length}</span>
               </span>
               {photos.length >= 1 ? (
-                <div className="flex items-center space-x-1 text-emerald-600">
+                <div className="flex items-center space-x-1 text-brand-success">
                   <CheckCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Required ✓</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1 text-gray-600">
+                <div className="flex items-center space-x-1 text-brand-text-muted">
                   <AlertCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Need at least 1 photo</span>
                 </div>
@@ -395,10 +395,10 @@ export default function NewLotPage() {
           </div>
 
           {/* Main Voice Section */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <div className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Main Voice Note</h2>
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <h2 className="text-lg font-semibold text-brand-text">Main Voice Note</h2>
+              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
                 <Mic className="w-4 h-4 text-white" />
               </div>
             </div>
@@ -408,14 +408,14 @@ export default function NewLotPage() {
             </div>
             
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Status</span>
+              <span className="text-sm text-brand-text-muted">Status</span>
               {mainVoice ? (
-                <div className="flex items-center space-x-1 text-emerald-600">
+                <div className="flex items-center space-x-1 text-brand-success">
                   <CheckCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Optional ✓</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1 text-gray-500">
+                <div className="flex items-center space-x-1 text-brand-text-muted">
                   <AlertCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Optional</span>
                 </div>
@@ -424,10 +424,10 @@ export default function NewLotPage() {
           </div>
 
           {/* Dimensions Voice Section */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 lg:col-span-2">
+          <div className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Dimensions Voice Note</h2>
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+              <h2 className="text-lg font-semibold text-brand-text">Dimensions Voice Note</h2>
+              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
                 <Mic className="w-4 h-4 text-white" />
               </div>
             </div>
@@ -437,14 +437,14 @@ export default function NewLotPage() {
             </div>
             
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Status</span>
+              <span className="text-sm text-brand-text-muted">Status</span>
               {dimensionsVoice ? (
-                <div className="flex items-center space-x-1 text-emerald-600">
+                <div className="flex items-center space-x-1 text-brand-success">
                   <CheckCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Optional ✓</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1 text-gray-500">
+                <div className="flex items-center space-x-1 text-brand-text-muted">
                   <AlertCircle className="w-4 h-4" />
                   <span className="text-sm font-medium">Optional</span>
                 </div>
@@ -454,7 +454,7 @@ export default function NewLotPage() {
         </div>
 
         {/* Finish Button */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <div className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border">
           <button
             onClick={() => {
               if (navigator.vibrate) navigator.vibrate(50);
