@@ -12,7 +12,7 @@ import CameraCapture from '../../../src/components/CameraCapture';
 import AudioRecorder from '../../../src/components/AudioRecorder';
 import Toast from '../../../src/components/Toast';
 import { getCurrentAuction } from '../../../src/lib/currentAuction';
-import { upsertLot } from '../../../src/lib/supabaseSync';
+// Removed Supabase sync import - keeping /new page fully offline
 import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function NewLotPage() {
@@ -24,7 +24,7 @@ export default function NewLotPage() {
   const [dimensionsVoice, setDimensionsVoice] = useState<MediaItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  // Removed uploadingPhotos state - not needed for offline-first approach
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; label: string } | null>(null);
   const [finishingLot, setFinishingLot] = useState(false);
 
@@ -64,13 +64,7 @@ export default function NewLotPage() {
       setLot(newLot);
       console.log('Created new lot:', newLot.id, newLot.number);
       
-      // Sync to Supabase
-      await upsertLot({ 
-        id: newLot.id, 
-        auctionId: newLot.auctionId, 
-        number: newLot.number, 
-        status: newLot.status 
-      });
+      // No network sync - keeping /new page fully offline
       
       return newLot;
     } catch (error) {
@@ -125,8 +119,7 @@ export default function NewLotPage() {
     if (!currentAuctionId) return;
 
     try {
-      setUploadingPhotos(true);
-      setUploadProgress({ current: 0, total: files.length, label: 'Processing photos...' });
+      setUploadProgress({ current: 0, total: files.length, label: 'Saving locally...' });
       
       // Ensure lot exists (create if this is the first media)
       const currentLot = await ensureLotExists();
@@ -138,7 +131,7 @@ export default function NewLotPage() {
         setUploadProgress({ 
           current: i + 1, 
           total: files.length, 
-          label: `Processing photo ${i + 1} of ${files.length}...` 
+          label: `Saving photo ${i + 1} of ${files.length} locally...` 
         });
         
         const file = files[i];
@@ -151,7 +144,11 @@ export default function NewLotPage() {
           type: 'photo',
           index: photos.length + i + 1,
           createdAt: new Date(),
-          uploaded: false
+          uploaded: false,
+          mime: resizedFile.type,
+          bytesSize: resizedFile.size,
+          width: undefined, // Will be set by downscaleImage if available
+          height: undefined // Will be set by downscaleImage if available
         };
         
         await db.media.add(mediaItem);
@@ -167,7 +164,6 @@ export default function NewLotPage() {
       console.error('Error processing photos:', error);
       setToast({ message: 'Failed to process photos. Please try again.', type: 'error' });
     } finally {
-      setUploadingPhotos(false);
       setUploadProgress(null);
     }
   };
@@ -193,7 +189,10 @@ export default function NewLotPage() {
         type: 'mainVoice',
         index: 1,
         createdAt: new Date(),
-        uploaded: false
+        uploaded: false,
+        mime: file.type,
+        bytesSize: file.size,
+        duration: undefined // Could be extracted from audio metadata
       };
       
       await db.media.add(mediaItem);
@@ -227,7 +226,10 @@ export default function NewLotPage() {
         type: 'dimensionVoice',
         index: 1,
         createdAt: new Date(),
-        uploaded: false
+        uploaded: false,
+        mime: file.type,
+        bytesSize: file.size,
+        duration: undefined // Could be extracted from audio metadata
       };
       
       await db.media.add(mediaItem);
@@ -259,16 +261,8 @@ export default function NewLotPage() {
         await db.lots.update(lot.id, { status: 'complete' });
         console.log('Marked lot as complete:', lot.id, lot.number);
         
-        setUploadProgress({ current: 2, total: 3, label: 'Syncing to cloud...' });
-        // Sync to Supabase (non-blocking)
-        upsertLot({ 
-          id: lot.id, 
-          auctionId: lot.auctionId, 
-          number: lot.number, 
-          status: 'complete' 
-        }).catch(error => {
-          console.warn('Background sync failed, will retry later:', error);
-        });
+        setUploadProgress({ current: 2, total: 3, label: 'Saving locally...' });
+        // No network sync - keeping /new page fully offline
         
         setUploadProgress({ current: 3, total: 3, label: 'Complete!' });
         
@@ -305,7 +299,6 @@ export default function NewLotPage() {
 
   // Check if we can finish the current lot
   const canFinish = photos.length >= 1;
-  const currentLotNumber = lot ? lot.number : 'New';
 
   if (loading) {
     return (

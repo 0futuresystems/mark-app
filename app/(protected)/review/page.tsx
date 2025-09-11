@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import { uid } from '../../../src/lib/id';
-import { saveMediaBlob, deleteMediaBlob, deleteMediaCompletely } from '../../../src/lib/blobStore';
+import { saveMediaBlob, deleteMediaCompletely } from '../../../src/lib/blobStore';
 import { updatePhotoOrder } from '../../../src/lib/mediaOps';
 import { downscaleImage } from '@/lib/files';
 import AudioRecorder from '../../../src/components/AudioRecorder';
@@ -162,7 +162,11 @@ export default function ReviewPage() {
           type: 'photo',
           index: nextIndex + i,
           createdAt: new Date(),
-          uploaded: false
+          uploaded: false,
+          mime: resizedFile.type,
+          bytesSize: resizedFile.size,
+          width: undefined, // Will be set by downscaleImage if available
+          height: undefined // Will be set by downscaleImage if available
         };
         
         await db.media.add(mediaItem);
@@ -290,7 +294,10 @@ export default function ReviewPage() {
         type: 'mainVoice',
         index: 1,
         createdAt: new Date(),
-        uploaded: false
+        uploaded: false,
+        mime: file.type,
+        bytesSize: file.size,
+        duration: undefined // Could be extracted from audio metadata
       };
       
       await db.media.add(mediaItem);
@@ -315,7 +322,10 @@ export default function ReviewPage() {
       type: 'dimensionVoice',
       index: existingDimensionVoices.length + 1,
       createdAt: new Date(),
-      uploaded: false
+      uploaded: false,
+      mime: 'audio/webm', // Default for voice notes
+      bytesSize: 0, // Will be set when file is recorded
+      duration: undefined // Could be extracted from audio metadata
     };
     
     await db.media.add(mediaItem);
@@ -334,7 +344,10 @@ export default function ReviewPage() {
         type: 'dimensionVoice',
         index: existingDimensionVoices.length + 1,
         createdAt: new Date(),
-        uploaded: false
+        uploaded: false,
+        mime: file.type,
+        bytesSize: file.size,
+        duration: undefined // Could be extracted from audio metadata
       };
       
       await db.media.add(mediaItem);
@@ -359,7 +372,10 @@ export default function ReviewPage() {
       type: 'keywordVoice',
       index: existingKeywordVoices.length + 1,
       createdAt: new Date(),
-      uploaded: false
+      uploaded: false,
+      mime: 'audio/webm', // Default for voice notes
+      bytesSize: 0, // Will be set when file is recorded
+      duration: undefined // Could be extracted from audio metadata
     };
     
     await db.media.add(mediaItem);
@@ -378,7 +394,10 @@ export default function ReviewPage() {
         type: 'keywordVoice',
         index: existingKeywordVoices.length + 1,
         createdAt: new Date(),
-        uploaded: false
+        uploaded: false,
+        mime: file.type,
+        bytesSize: file.size,
+        duration: undefined // Could be extracted from audio metadata
       };
       
       await db.media.add(mediaItem);

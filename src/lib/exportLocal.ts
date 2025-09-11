@@ -76,7 +76,7 @@ export function generateCSVFromData(data: ExportData): string {
           mediaItem.type,
           mediaItem.index.toString(),
           fileName,
-          mediaItem.bytes?.toString() || '',
+          mediaItem.bytesSize?.toString() || '',
           mediaItem.uploaded ? 'true' : 'false',
           mediaItem.remotePath || ''
         ].join(','));

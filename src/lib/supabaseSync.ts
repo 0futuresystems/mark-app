@@ -314,7 +314,7 @@ export async function processPendingMediaSyncs(): Promise<void> {
           lotId: media.lotId,
           kind,
           r2Key: media.remotePath || `Lot-${lot.number}/${media.type}/${media.id}`,
-          bytes: media.bytes || 0,
+          bytes: media.bytesSize || 0,
           width: media.width,
           height: media.height,
           duration: media.duration,

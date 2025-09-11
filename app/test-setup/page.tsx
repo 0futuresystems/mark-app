@@ -61,7 +61,9 @@ export default function TestSetupPage() {
           type: 'photo',
           index: 1,
           createdAt: new Date(),
-          uploaded: false
+          uploaded: false,
+          mime: 'image/jpeg',
+          bytesSize: 0
         };
         await db.media.add(photoMedia);
         
@@ -72,7 +74,9 @@ export default function TestSetupPage() {
           type: 'mainVoice',
           index: 1,
           createdAt: new Date(),
-          uploaded: false
+          uploaded: false,
+          mime: 'audio/webm',
+          bytesSize: 0
         };
         await db.media.add(voiceMedia);
         

@@ -3,28 +3,29 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { getSyncQueueStatus } from '@/lib/supabaseSync'
+// Disabled auto-sync - now using manual sync only on /send page
+// import { getSyncQueueStatus } from '@/lib/supabaseSync'
 import { Menu, X, RefreshCw, Plus, LogOut } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AppHeader() {
   const { user, signOut } = useAuth()
   const router = useRouter()
-  const [syncStatus, setSyncStatus] = useState({ pending: 0 })
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    // Check sync status every 10 seconds
-    const interval = setInterval(() => {
-      setSyncStatus(getSyncQueueStatus())
-    }, 10000)
-    
-    // Check immediately
-    setSyncStatus(getSyncQueueStatus())
-    
-    return () => clearInterval(interval)
-  }, [])
+  // Sync status disabled - using manual sync only
+  // useEffect(() => {
+  //   // Check sync status every 10 seconds
+  //   const interval = setInterval(() => {
+  //     setSyncStatus(getSyncQueueStatus())
+  //   }, 10000)
+  //   
+  //   // Check immediately
+  //   setSyncStatus(getSyncQueueStatus())
+  //   
+  //   return () => clearInterval(interval)
+  // }, [])
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -67,8 +68,8 @@ export default function AppHeader() {
 
   const handleSync = () => {
     setIsMenuOpen(false)
-    // TODO: Implement sync functionality
-    console.log('Manual sync triggered')
+    // Redirect to /send page for manual sync
+    router.push('/send')
   }
 
   const handleNewAuction = () => {
@@ -110,12 +111,12 @@ export default function AppHeader() {
       
       {/* Right side with sync status and hamburger menu */}
       <div className="flex items-center space-x-4">
-        {/* Sync Status Indicator - Changed to red for visibility */}
-        {syncStatus.pending > 0 && (
+        {/* Sync Status Indicator - Disabled for manual sync only */}
+        {/* {syncStatus.pending > 0 && (
           <span className="text-sm text-red-600 bg-red-100 px-3 py-1 rounded-full font-medium">
             {syncStatus.pending} pending sync
           </span>
-        )}
+        )} */}
         
         {/* Avatar Circle */}
         <div className="w-10 h-10 bg-brand-accent rounded-full flex items-center justify-center text-white text-lg font-bold shadow-soft">

@@ -73,6 +73,26 @@ export class LotLoggerDB extends Dexie {
         });
       }
     });
+    
+    this.version(5).stores({
+      auctions: 'id, name, createdAt, archived',
+      lots: 'id, number, auctionId, status, createdAt',
+      media: 'id, lotId, type, index, createdAt, uploaded, remotePath, needsSync, mime, bytesSize, width, height, duration, objectKey, etag, uploadedAt',
+      blobs: 'id',
+      meta: 'key'
+    }).upgrade(async (tx) => {
+      // Migration: Add new media fields for offline-first approach
+      const existingMedia = await tx.table('media').toArray();
+      for (const media of existingMedia) {
+        await tx.table('media').update(media.id, { 
+          mime: media.mime || 'image/jpeg',
+          bytesSize: media.bytesSize || 0,
+          objectKey: undefined,
+          etag: undefined,
+          uploadedAt: undefined
+        });
+      }
+    });
   }
 }
 

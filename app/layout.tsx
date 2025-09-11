@@ -5,7 +5,7 @@ import RegisterSW from "./register-sw";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import SyncSetup from "@/components/SyncSetup";
-import StoragePersistence from "@/components/StoragePersistence";
+import PersistentStorage from "@/components/PersistentStorage";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -35,7 +35,7 @@ export default function RootLayout({
 
       {/* Apply Tailwind baseline to body; keep your font vars */}
       <body className={`${geistSans.variable} ${geistMono.variable} bg-brand-bg text-brand-text antialiased`}>
-        <StoragePersistence />
+        <PersistentStorage />
         <ToastProvider>
           <SyncSetup />
           <AuthProvider>
