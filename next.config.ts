@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
   },
   // Ensure proper client/server component boundaries
   serverExternalPackages: ['dexie'],
+  experimental: {
+    // Help with client reference manifest generation
+    optimizePackageImports: ['lucide-react'],
+  },
 };
 
 export default nextConfig;
