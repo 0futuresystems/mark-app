@@ -1,6 +1,8 @@
 import { db } from '../db';
 import { getMediaBlob } from './blobStore';
 import { upsertMedia } from './supabaseSync';
+import { queueSyncOperation } from './sync/worker';
+import { useSyncStore } from './sync/state';
 
 export interface UploadProgress {
   done: number;
@@ -182,9 +184,9 @@ export async function syncPending(
                 needsSync: true // Mark for Supabase sync
               });
               
-              // Sync to Supabase (non-blocking)
-              try {
-                const kind = media.type === 'photo' ? 'photo' : 'audio';
+              // Queue for Supabase sync (non-blocking)
+              const kind = media.type === 'photo' ? 'photo' : 'audio';
+              queueSyncOperation(`media-${media.id}`, async () => {
                 await upsertMedia({
                   id: media.id,
                   lotId: media.lotId,
@@ -199,10 +201,7 @@ export async function syncPending(
                 
                 // Mark as synced
                 await db.media.update(media.id, { needsSync: false });
-              } catch (syncError) {
-                console.warn(`Failed to sync media ${media.id} to Supabase:`, syncError);
-                // Keep needsSync flag for retry later
-              }
+              });
               
               uploadSuccess = true;
               result.success++;
@@ -233,9 +232,9 @@ export async function syncPending(
                 needsSync: true // Mark for Supabase sync
               });
               
-              // Sync to Supabase (non-blocking)
-              try {
-                const kind = media.type === 'photo' ? 'photo' : 'audio';
+              // Queue for Supabase sync (non-blocking)
+              const kind = media.type === 'photo' ? 'photo' : 'audio';
+              queueSyncOperation(`media-${media.id}`, async () => {
                 await upsertMedia({
                   id: media.id,
                   lotId: media.lotId,
@@ -250,10 +249,7 @@ export async function syncPending(
                 
                 // Mark as synced
                 await db.media.update(media.id, { needsSync: false });
-              } catch (syncError) {
-                console.warn(`Failed to sync media ${media.id} to Supabase:`, syncError);
-                // Keep needsSync flag for retry later
-              }
+              });
               
               uploadSuccess = true;
               result.success++;

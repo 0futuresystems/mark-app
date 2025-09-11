@@ -5,6 +5,7 @@ import RegisterSW from "./register-sw";
 import { AuthProvider } from "@/src/contexts/AuthContext";
 import { ToastProvider } from "@/src/contexts/ToastContext";
 import SyncSetup from "@/src/components/SyncSetup";
+import SyncBanner from "@/src/components/SyncBanner";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} bg-brand-bg text-slate-100 antialiased`}>
         <ToastProvider>
           <SyncSetup />
+          <SyncBanner />
           <AuthProvider>
             {children}
           </AuthProvider>

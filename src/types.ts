@@ -10,6 +10,7 @@ export interface Auction {
 export interface Lot {
   id: string;
   number: string;
+  number_int?: number;
   auctionId: string;
   status: 'draft' | 'complete' | 'sent';
   createdAt: Date;

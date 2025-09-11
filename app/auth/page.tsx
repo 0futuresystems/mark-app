@@ -5,7 +5,8 @@ import { supabase, isSupabaseConfigured } from '@/src/lib/supabaseClient'
 import { useAuth } from '@/src/contexts/AuthContext'
 import { useToast } from '@/src/contexts/ToastContext'
 import { useRouter } from 'next/navigation'
-import { Mail, ArrowRight, AlertTriangle, KeyRound, CheckCircle } from 'lucide-react'
+import { AlertTriangle, KeyRound, CheckCircle } from 'lucide-react'
+import AuthCard, { AuthCardHeader, AuthCardForm, AuthCardInput, AuthCardButton, AuthCardFooter } from '@/src/components/AuthCard'
 
 type AuthStep = 'email' | 'code'
 
@@ -48,7 +49,7 @@ export default function AuthPage() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          shouldCreateUser: true
+          shouldCreateUser: false
         }
       })
 
@@ -100,17 +101,12 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            Sign in
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300 text-sm">
-            {step === 'email' ? "We'll email you a login code." : "Enter the 6-digit code we sent to your email."}
-          </p>
-        </div>
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <AuthCard>
+        <AuthCardHeader
+          title="Sign in"
+          subtitle={step === 'email' ? "We'll email you a login code." : "Enter the 6-digit code we sent to your email."}
+        />
 
         {/* Configuration Warning */}
         {!isSupabaseConfigured() && (
@@ -127,33 +123,27 @@ export default function AuthPage() {
 
         {/* Email Step */}
         {step === 'email' && (
-          <form onSubmit={handleSendCode} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="w-full px-4 py-4 text-lg bg-white text-gray-900 placeholder:text-gray-500 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 border border-gray-300 dark:border-gray-600 rounded-xl transition-all"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-            </div>
+          <AuthCardForm onSubmit={handleSendCode}>
+            <AuthCardInput
+              id="email"
+              name="email"
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={loading}
+              required
+              autoComplete="email"
+            />
 
-            <button
+            <AuthCardButton
               type="submit"
               disabled={loading || !email.trim()}
-              className="w-full flex items-center justify-center space-x-2 py-4 px-6 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+              loading={loading}
             >
               {loading ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                   <span>Sending...</span>
                 </>
               ) : (
@@ -162,43 +152,37 @@ export default function AuthPage() {
                   <span>Send code</span>
                 </>
               )}
-            </button>
-
-          </form>
+            </AuthCardButton>
+          </AuthCardForm>
         )}
 
         {/* Code Step */}
         {step === 'code' && (
-          <form onSubmit={handleVerifyCode} className="space-y-6">
-            <div>
-              <label htmlFor="code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                6-digit code
-              </label>
-              <input
-                id="code"
-                name="code"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                required
-                className="w-full px-4 py-4 text-2xl text-center tracking-widest bg-white text-gray-900 placeholder:text-gray-500 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-blue-600 border border-gray-300 dark:border-gray-600 rounded-xl transition-all font-mono"
-                placeholder="123456"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                disabled={loading}
-                autoFocus
-              />
-            </div>
+          <AuthCardForm onSubmit={handleVerifyCode}>
+            <AuthCardInput
+              id="code"
+              name="code"
+              type="text"
+              placeholder="123456"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              disabled={loading}
+              required
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              autoFocus
+              className="text-2xl text-center tracking-widest font-mono"
+            />
 
-            <button
+            <AuthCardButton
               type="submit"
               disabled={loading || code.length !== 6}
-              className="w-full flex items-center justify-center space-x-2 py-4 px-6 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+              loading={loading}
             >
               {loading ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                   <span>Verifying...</span>
                 </>
               ) : (
@@ -207,29 +191,29 @@ export default function AuthPage() {
                   <span>Verify</span>
                 </>
               )}
-            </button>
+            </AuthCardButton>
 
             {/* Back to email */}
-            <div className="text-center">
+            <AuthCardFooter>
               <button
                 type="button"
                 onClick={handleBackToEmail}
                 disabled={loading}
-                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50 transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
               >
                 ← Back to email
               </button>
-            </div>
-          </form>
+            </AuthCardFooter>
+          </AuthCardForm>
         )}
 
         {/* Help Text */}
-        <div className="text-center">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+        <AuthCardFooter>
+          <p className="text-xs text-muted-foreground">
             No password required • Secure OTP authentication
           </p>
-        </div>
-      </div>
+        </AuthCardFooter>
+      </AuthCard>
     </div>
   )
 }

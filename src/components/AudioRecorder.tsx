@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Mic, Square, RotateCcw, Trash2 } from 'lucide-react';
 import { ensureMicAccess } from '../lib/permissions';
+import { useSyncStore } from '../lib/sync/state';
 
 interface AudioRecorderProps {
   onBlob: (file: File) => void;
@@ -20,6 +21,7 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const { setMediaRecorderActive } = useSyncStore();
 
   const getSupportedMimeType = useCallback(() => {
     const types = ['audio/mp4', 'audio/webm'];
@@ -57,8 +59,9 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    setMediaRecorderActive(false);
     stopTimer();
-  }, [stopTimer]);
+  }, [stopTimer, setMediaRecorderActive]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -96,6 +99,7 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
       
       mediaRecorder.start();
       setState('recording');
+      setMediaRecorderActive(true);
       startTimer();
     } catch (err) {
       cleanup();
@@ -121,8 +125,9 @@ export default function AudioRecorder({ onBlob }: AudioRecorderProps) {
     if (mediaRecorderRef.current && state === 'recording') {
       mediaRecorderRef.current.stop();
       setState('ready');
+      setMediaRecorderActive(false);
     }
-  }, [state]);
+  }, [state, setMediaRecorderActive]);
 
   const retake = useCallback(() => {
     if (lastRecording) {

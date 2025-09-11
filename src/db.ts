@@ -73,6 +73,22 @@ export class LotLoggerDB extends Dexie {
         });
       }
     });
+    
+    this.version(5).stores({
+      auctions: 'id, name, createdAt, archived',
+      lots: 'id, number, auctionId, status, createdAt, number_int',
+      media: 'id, lotId, type, index, createdAt, uploaded, remotePath, needsSync, bytes, width, height, duration',
+      blobs: 'id',
+      meta: 'key'
+    }).upgrade(async (tx) => {
+      // Migration: Add number_int field to existing lots
+      const existingLots = await tx.table('lots').toArray();
+      for (const lot of existingLots) {
+        // Parse the current number string to get the integer value
+        const numberInt = parseInt(lot.number, 10) || 1;
+        await tx.table('lots').update(lot.id, { number_int: numberInt });
+      }
+    });
   }
 }
 

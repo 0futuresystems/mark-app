@@ -1,5 +1,7 @@
 import { supabase } from './supabaseClient'
 import { Auction, Lot, MediaItem } from '../types'
+import { queueSyncOperation } from './sync/worker'
+import { useSyncStore } from './sync/state'
 
 // Retry configuration
 const MAX_RETRIES = 3
@@ -136,15 +138,12 @@ export async function upsertAuction(auction: { id: string; name: string }): Prom
     }
   }
 
-  const result = await withRetry(operation, `upsertAuction(${auction.id})`)
-  
-  if (result === null) {
-    // Add to retry queue
-    syncQueue.push(() => upsertAuction(auction))
-    console.warn(`🔄 Queued auction for retry: ${auction.id} - ${auction.name}`)
-    notifyToast(`Failed to sync auction "${auction.name}". Will retry later.`, 'error')
-  } else {
+  try {
+    await operation()
     console.log(`✅ Successfully synced auction: ${auction.id} - ${auction.name}`)
+  } catch (error) {
+    console.warn(`🔄 Queuing auction for retry: ${auction.id} - ${auction.name}`)
+    queueSyncOperation(`auction-${auction.id}`, () => upsertAuction(auction))
   }
 }
 
@@ -173,15 +172,12 @@ export async function upsertLot(lot: {
     }
   }
 
-  const result = await withRetry(operation, `upsertLot(${lot.id})`)
-  
-  if (result === null) {
-    // Add to retry queue
-    syncQueue.push(() => upsertLot(lot))
-    console.warn(`🔄 Queued lot for retry: ${lot.id} - #${lot.number} (${lot.status})`)
-    notifyToast(`Failed to sync lot #${lot.number}. Will retry later.`, 'error')
-  } else {
+  try {
+    await operation()
     console.log(`✅ Successfully synced lot: ${lot.id} - #${lot.number} (${lot.status})`)
+  } catch (error) {
+    console.warn(`🔄 Queuing lot for retry: ${lot.id} - #${lot.number} (${lot.status})`)
+    queueSyncOperation(`lot-${lot.id}`, () => upsertLot(lot))
   }
 }
 
@@ -264,15 +260,12 @@ export async function upsertMedia(media: {
     }
   }
 
-  const result = await withRetry(operation, `upsertMedia(${media.id})`)
-  
-  if (result === null) {
-    // Add to retry queue
-    syncQueue.push(() => upsertMedia(media))
-    console.warn(`🔄 Queued media for retry: ${media.id} (${media.kind})`)
-    notifyToast(`Failed to sync media ${media.id}. Will retry later.`, 'error')
-  } else {
+  try {
+    await operation()
     console.log(`✅ Successfully synced media: ${media.id} (${media.kind})`)
+  } catch (error) {
+    console.warn(`🔄 Queuing media for retry: ${media.id} (${media.kind})`)
+    queueSyncOperation(`media-${media.id}`, () => upsertMedia(media))
   }
 }
 
