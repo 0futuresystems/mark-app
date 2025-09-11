@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { uid } from '../../../src/lib/id';
-import { nextLotNumber } from '../../../src/lib/lotNumber';
+import { getNextLotNumberInt, formatLotNumber } from '../../../src/lib/lots';
 import { downscaleImage } from '../../../src/lib/files';
 import { saveMediaBlob } from '../../../src/lib/blobStore';
 import { db } from '../../../src/db';
@@ -48,10 +48,13 @@ export default function NewLotPage() {
     if (lot || !currentAuctionId) return lot;
     
     try {
-      const lotNumber = await nextLotNumber(currentAuctionId);
+      const numberInt = await getNextLotNumberInt(currentAuctionId);
+      const numberStr = formatLotNumber(numberInt);
+      
       const newLot: Lot = {
         id: uid(),
-        number: lotNumber,
+        number: numberStr,
+        number_int: numberInt,
         auctionId: currentAuctionId,
         status: 'draft',
         createdAt: new Date()
@@ -303,7 +306,7 @@ export default function NewLotPage() {
             </button>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                {lot ? `Lot #${lot.number.toString().padStart(3, '0')}` : 'New Lot'}
+                {lot ? `Lot #${lot.number}` : 'New Lot'}
               </h1>
               <p className="text-gray-600 mt-1">
                 {lot ? 'Complete the required steps to finish your lot' : 'Add your first photo to start'}
