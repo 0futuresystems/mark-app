@@ -143,7 +143,7 @@ async function uploadSingleMedia(media: any, onProgress?: (info: UploadProgress)
           await db.media.update(media.id, { 
             uploaded: true, 
             remotePath: key,
-            bytes: metadata.bytes,
+            bytesSize: metadata.bytes,
             width: metadata.width,
             height: metadata.height,
             duration: metadata.duration,
@@ -330,7 +330,7 @@ export async function syncPending(
               await db.media.update(media.id, { 
                 uploaded: true, 
                 remotePath: key,
-                bytes: metadata.bytes,
+                bytesSize: metadata.bytes,
                 width: metadata.width,
                 height: metadata.height,
                 duration: metadata.duration,
@@ -381,7 +381,7 @@ export async function syncPending(
               await db.media.update(media.id, { 
                 uploaded: true, 
                 remotePath: key,
-                bytes: metadata.bytes,
+                bytesSize: metadata.bytes,
                 width: metadata.width,
                 height: metadata.height,
                 duration: metadata.duration,

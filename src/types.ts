@@ -26,20 +26,20 @@ export interface MediaItem {
   uploaded: boolean;
   remotePath?: string;
   needsSync?: boolean; // Flag for pending Supabase sync
-  // Media metadata for Supabase
-  bytes?: number;
+  // Media metadata
+  mime: string;
+  bytesSize: number;
   width?: number;
   height?: number;
   duration?: number; // For audio files
   // Cloud storage metadata
   objectKey?: string; // R2/S3 object key for content-addressed storage
   etag?: string; // ETag from cloud storage for deduplication
+  uploadedAt?: Date; // When uploaded to cloud storage
 }
 
 export interface MediaBlob {
-  id: string; // mediaId
-  data: ArrayBuffer;
-  mimeType: string;
-  size: number;
+  id: string; // mediaId (same as media.id)
+  data: Blob; // Store as Blob for better memory management
 }
 

@@ -83,7 +83,7 @@ export async function generateCloudCsv(
           mediaType: mediaItem.type,
           index: mediaItem.index,
           fileName,
-          size: mediaItem.bytes?.toString() || '',
+          size: mediaItem.bytesSize?.toString() || '',
           uploaded: mediaItem.objectKey ? 'true' : 'false',
           presignedUrl,
           expiresAt

@@ -5,14 +5,13 @@ import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import { getCurrentAuction } from '../../../src/lib/currentAuction';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Share2, Cloud, Download, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Share2, Cloud, CheckCircle, AlertCircle, X } from 'lucide-react';
 
 // Import new utilities
 import { getExportableData, createExportZip, shareZipFile, markLotsAsShared } from '../../../src/lib/exportLocal';
-import { uploadPendingMedia, UploadProgress } from '../../../src/lib/sync/uploadQueue';
-import { syncAuctionToSupabase, markLotsAsSynced } from '../../../src/lib/sync/supabase';
-import { generateCloudCsv } from '../../../src/lib/sync/makeCsv';
-import { sendCsvEmail } from '../../../src/lib/sync/emailCsv';
+import { listPendingMediaByAuction, getMediaBlob } from '../../../src/lib/blobStore';
+import { generateObjectKey, presignPut, presignGet, uploadBlobToR2 } from '../../../src/lib/r2';
+import { updateMediaItem } from '../../../src/lib/blobStore';
 
 export default function SendPage() {
   const router = useRouter();
@@ -29,7 +28,12 @@ export default function SendPage() {
 
   // Sync When Home states
   const [syncing, setSyncing] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<UploadProgress | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{
+    current: number;
+    total: number;
+    label: string;
+    errors?: string[];
+  } | null>(null);
   const [syncResult, setSyncResult] = useState<{success: number; failed: number; skipped: number; errors: string[]} | null>(null);
   const [syncSuccess, setSyncSuccess] = useState(false);
 
@@ -137,7 +141,7 @@ export default function SendPage() {
 
       // Share or download
       setShareProgress({ current: 3, total: 3, label: 'Sharing file...' });
-      const wasShared = await shareZipFile(zipFile);
+      await shareZipFile(zipFile);
 
       // Mark lots as shared
       const lotIds = exportData.lots.map(lot => lot.id);
@@ -164,66 +168,143 @@ export default function SendPage() {
     setSyncSuccess(false);
 
     try {
-      // Step 1: Upload pending media
+      // Step 1: Get pending media
       setSyncProgress({
         current: 0,
         total: 0,
-        label: 'Starting sync...',
+        label: 'Finding pending media...',
         errors: []
       });
 
-      const uploadResult = await uploadPendingMedia(
-        currentAuctionId,
-        (progress) => {
-          setSyncProgress(progress);
-        },
-        3 // concurrency
-      );
-
-      setSyncResult(uploadResult);
-
-      if (uploadResult.failed > 0) {
-        throw new Error(`${uploadResult.failed} media items failed to upload`);
+      const pendingMedia = await listPendingMediaByAuction(currentAuctionId);
+      
+      if (pendingMedia.length === 0) {
+        setSyncSuccess(true);
+        return;
       }
 
-      // Step 2: Sync to Supabase
       setSyncProgress({
-        current: uploadResult.success + uploadResult.skipped,
-        total: uploadResult.success + uploadResult.skipped,
-        label: 'Syncing metadata to cloud...',
+        current: 0,
+        total: pendingMedia.length,
+        label: `Uploading ${pendingMedia.length} media items...`,
         errors: []
       });
 
-      await syncAuctionToSupabase(currentAuctionId);
+      let successCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      // Step 2: Upload each media item to R2
+      for (let i = 0; i < pendingMedia.length; i++) {
+        const media = pendingMedia[i];
+        
+        try {
+          setSyncProgress({
+            current: i,
+            total: pendingMedia.length,
+            label: `Uploading ${media.type} ${i + 1} of ${pendingMedia.length}...`,
+            errors: []
+          });
+
+          // Get the blob from IndexedDB
+          const blob = await getMediaBlob(media.id);
+          if (!blob) {
+            throw new Error(`Blob not found for media ${media.id}`);
+          }
+
+          // Generate object key
+          const objectKey = generateObjectKey(media);
+
+          // Get presigned PUT URL
+          const presign = await presignPut(objectKey, media.mime);
+
+          // Upload to R2
+          const { etag } = await uploadBlobToR2(presign, blob);
+
+          // Update media record
+          await updateMediaItem(media.id, {
+            objectKey,
+            etag,
+            uploadedAt: new Date(),
+            uploaded: true
+          });
+
+          successCount++;
+        } catch (error) {
+          failedCount++;
+          const errorMsg = `Failed to upload ${media.type} ${media.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          errors.push(errorMsg);
+          console.error(errorMsg, error);
+        }
+      }
+
+      setSyncResult({
+        success: successCount,
+        failed: failedCount,
+        skipped: 0,
+        errors
+      });
+
+      if (failedCount > 0) {
+        throw new Error(`${failedCount} media items failed to upload`);
+      }
 
       // Step 3: Generate CSV with presigned URLs
       setSyncProgress({
-        current: uploadResult.success + uploadResult.skipped,
-        total: uploadResult.success + uploadResult.skipped,
+        current: pendingMedia.length,
+        total: pendingMedia.length,
         label: 'Generating CSV with media links...',
         errors: []
       });
 
-      const csvContent = await generateCloudCsv(currentAuctionId);
-      const auction = await db.auctions.get(currentAuctionId);
-      const auctionName = auction?.name || 'Unknown';
+      const csvRows: string[] = [];
+      csvRows.push('Lot ID,Media ID,Type,Object Key,Download URL');
+
+      for (const media of pendingMedia) {
+        try {
+          const presignedUrl = await presignGet(media.objectKey!, 7 * 24 * 60 * 60); // 7 days
+          csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},${presignedUrl.url}`);
+        } catch (error) {
+          console.error(`Failed to generate presigned URL for ${media.id}:`, error);
+          csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},ERROR`);
+        }
+      }
+
+      const csvContent = csvRows.join('\n');
 
       // Step 4: Send email
       setSyncProgress({
-        current: uploadResult.success + uploadResult.skipped,
-        total: uploadResult.success + uploadResult.skipped,
+        current: pendingMedia.length,
+        total: pendingMedia.length,
         label: 'Sending email with CSV...',
         errors: []
       });
 
-      const emailResult = await sendCsvEmail(csvContent, auctionName);
-      if (!emailResult.success) {
-        throw new Error(`Email failed: ${emailResult.error}`);
+      const auction = await db.auctions.get(currentAuctionId);
+      const auctionName = auction?.name || 'Unknown';
+
+      const emailResponse = await fetch('/api/email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subject: `Mark App Export - ${auctionName}`,
+          summary: `Export from ${auctionName} with ${successCount} media items`,
+          auctionId: currentAuctionId,
+          csv: csvContent,
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        throw new Error(`Email failed: ${emailResponse.statusText}`);
       }
 
       // Step 5: Mark lots as synced
       const lotIds = lots.map(lot => lot.id);
-      await markLotsAsSynced(lotIds);
+      for (const lotId of lotIds) {
+        await db.lots.update(lotId, { syncedAt: new Date().toISOString() });
+      }
 
       setSyncSuccess(true);
       await loadData(); // Refresh to update syncedAt timestamps
@@ -337,6 +418,9 @@ export default function SendPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <p className="text-green-700 text-sm mt-2">
+              We&apos;ve emailed your export to kvvisakh@gmail.com
+            </p>
           </div>
         )}
 
@@ -374,7 +458,7 @@ export default function SendPage() {
               />
             </div>
             <p className="mt-2 text-sm text-emerald-700">{syncProgress.label}</p>
-            {syncProgress.errors.length > 0 && (
+            {syncProgress.errors && syncProgress.errors.length > 0 && (
               <div className="mt-2 text-xs text-red-600">
                 <strong>Errors:</strong> {syncProgress.errors.join(', ')}
               </div>

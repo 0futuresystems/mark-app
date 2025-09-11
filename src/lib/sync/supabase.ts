@@ -60,7 +60,7 @@ export async function upsertMediaToSupabase(media: MediaItem): Promise<void> {
     index_in_lot: media.index,
     object_key: media.objectKey,
     etag: media.etag,
-    bytes: media.bytes || 0,
+    bytes: media.bytesSize || 0,
     width: media.width,
     height: media.height,
     duration: media.duration,
