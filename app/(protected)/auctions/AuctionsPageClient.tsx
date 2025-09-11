@@ -303,14 +303,19 @@ export default function AuctionsPageClient() {
                       </button>
                     </div>
                   ) : (
-                    <div>
-                      <h3 className="text-lg font-semibold text-brand-text truncate">
-                        {auction.name}
-                      </h3>
-                      <p className="text-sm text-brand-text-muted">
-                        {lotCounts[auction.id] || 0} lots • Created {new Date(auction.createdAt).toLocaleDateString()}
-                        {auction.archived && ' • Archived'}
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <button
+                        onClick={() => handleSelectAuction(auction.id)}
+                        className="text-left w-full"
+                      >
+                        <h3 className="text-lg font-semibold text-brand-text truncate hover:text-brand-accent transition-colors">
+                          {auction.name}
+                        </h3>
+                        <p className="text-sm text-brand-text-muted">
+                          {lotCounts[auction.id] || 0} lots • Created {new Date(auction.createdAt).toLocaleDateString()}
+                          {auction.archived && ' • Archived'}
+                        </p>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -320,15 +325,6 @@ export default function AuctionsPageClient() {
                     <div className="px-3 py-1 bg-brand-accent text-white text-sm font-medium rounded-full">
                       Current
                     </div>
-                  )}
-                  
-                  {!auction.archived && currentAuctionId !== auction.id && (
-                    <button
-                      onClick={() => handleSelectAuction(auction.id)}
-                      className="px-4 py-2 bg-brand-accent text-white rounded-lg hover:bg-brand-accent-hover transition-colors text-sm"
-                    >
-                      Select
-                    </button>
                   )}
 
                   <div className="flex items-center gap-1">

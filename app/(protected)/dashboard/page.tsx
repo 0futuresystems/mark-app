@@ -89,39 +89,45 @@ export default function Dashboard() {
             className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-brand-accent/20 transition-all duration-200 transform hover:scale-105 active:scale-95 group"
             href="/new"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-brand-text">New Entry</h3>
-              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
-                <Plus className="w-4 h-4 text-white" />
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Plus className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-brand-text mb-2">New Entry</h3>
+                <p className="text-brand-text-muted text-sm">Create a new lot entry with photos and voice notes</p>
               </div>
             </div>
-            <p className="text-brand-text-muted text-sm">Create a new lot entry with photos and voice notes</p>
           </Link>
           
           <Link 
             className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-brand-accent/20 transition-all duration-200 transform hover:scale-105 active:scale-95 group"
             href="/review"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-brand-text">Review Data</h3>
-              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
-                <Eye className="w-4 h-4 text-white" />
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                <Eye className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-brand-text mb-2">Review Data</h3>
+                <p className="text-brand-text-muted text-sm">Review and manage your existing lot entries</p>
               </div>
             </div>
-            <p className="text-brand-text-muted text-sm">Review and manage your existing lot entries</p>
           </Link>
           
           <Link 
             className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-brand-accent/20 transition-all duration-200 transform hover:scale-105 active:scale-95 group"
             href="/send"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-brand-text">Send Data</h3>
-              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
-                <Send className="w-4 h-4 text-white" />
+            <div className="flex items-start space-x-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <Send className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-brand-text mb-2">Send Data</h3>
+                <p className="text-brand-text-muted text-sm">Upload and send your lot data</p>
               </div>
             </div>
-            <p className="text-brand-text-muted text-sm">Upload and send your lot data</p>
           </Link>
         </div>
 
