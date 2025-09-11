@@ -378,7 +378,7 @@ export default function NewLotPage() {
             
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">
-                Captured: {photos.length} photo{photos.length !== 1 ? 's' : ''}
+                Captured: <span className={photos.length > 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>{photos.length}</span>
               </span>
               {photos.length >= 1 ? (
                 <div className="flex items-center space-x-1 text-emerald-600">
@@ -417,7 +417,7 @@ export default function NewLotPage() {
               ) : (
                 <div className="flex items-center space-x-1 text-gray-500">
                   <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Optional - not required</span>
+                  <span className="text-sm font-medium">Optional</span>
                 </div>
               )}
             </div>
@@ -446,7 +446,7 @@ export default function NewLotPage() {
               ) : (
                 <div className="flex items-center space-x-1 text-gray-500">
                   <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Optional - not required</span>
+                  <span className="text-sm font-medium">Optional</span>
                 </div>
               )}
             </div>
@@ -456,10 +456,13 @@ export default function NewLotPage() {
         {/* Finish Button */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <button
-            onClick={handleFinishLot}
-            className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-200 ${
+            onClick={() => {
+              if (navigator.vibrate) navigator.vibrate(50);
+              handleFinishLot();
+            }}
+            className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 active:scale-95 ${
               canFinish && !finishingLot
-                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md'
+                ? 'bg-brand-accent text-white hover:bg-brand-accent-hover shadow-soft hover:shadow-medium'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
             disabled={!canFinish || finishingLot}
@@ -475,7 +478,7 @@ export default function NewLotPage() {
                 <span>Finish Lot & Continue</span>
               </div>
             ) : (
-              'Complete Required Steps'
+              'Complete Steps'
             )}
           </button>
         </div>

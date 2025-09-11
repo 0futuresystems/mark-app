@@ -189,6 +189,11 @@ export default function ReviewPage() {
   };
 
   const movePhoto = async (mediaId: string, direction: 'up' | 'down') => {
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(30);
+    }
+    
     const photos = lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index);
     const currentIndex = photos.findIndex(p => p.id === mediaId);
     
@@ -208,6 +213,11 @@ export default function ReviewPage() {
   };
 
   const deleteMedia = async (mediaId: string) => {
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+    
     try {
       await db.media.delete(mediaId);
       await deleteMediaBlob(mediaId);
@@ -352,9 +362,17 @@ export default function ReviewPage() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Review Data</h1>
-            <p className="text-gray-600 mt-1">Review and manage your lot entries</p>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={() => router.push('/')}
+              className="w-12 h-12 bg-brand-panel rounded-xl flex items-center justify-center hover:bg-brand-border transition-all duration-150 transform hover:scale-105 active:scale-95 shadow-soft"
+            >
+              <ArrowLeft className="w-6 h-6 text-brand-text" />
+            </button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-brand-text">Review Data</h1>
+              <p className="text-brand-text-muted mt-1">Review and manage your lot entries</p>
+            </div>
           </div>
         </div>
         
@@ -468,35 +486,55 @@ export default function ReviewPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                 {lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index).map((photo, index) => (
                   <div key={photo.id} className="relative group">
-                    <LotThumbnail mediaItem={photo} size="medium" className="w-full" />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 flex space-x-1">
+                    {/* Photo thumbnail with click to view */}
+                    <div className="cursor-pointer transform transition-all duration-150 hover:scale-105">
+                      <LotThumbnail mediaItem={photo} size="medium" className="w-full" />
+                    </div>
+                    
+                    {/* Overlay with controls - More prominent styling */}
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition-all duration-300 rounded-lg flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col space-y-1">
+                        <div className="flex space-x-1 justify-center">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              movePhoto(photo.id, 'up');
+                            }}
+                            disabled={index === 0}
+                            className="p-2 bg-brand-accent rounded-lg text-white hover:bg-brand-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-150 hover:scale-110 active:scale-95"
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              movePhoto(photo.id, 'down');
+                            }}
+                            disabled={index === lotMedia.filter(m => m.type === 'photo').length - 1}
+                            className="p-2 bg-brand-accent rounded-lg text-white hover:bg-brand-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-150 hover:scale-110 active:scale-95"
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                        </div>
                         <button 
-                          onClick={() => movePhoto(photo.id, 'up')}
-                          disabled={index === 0}
-                          className="p-1 bg-white rounded text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Move up"
-                        >
-                          ↑
-                        </button>
-                        <button 
-                          onClick={() => movePhoto(photo.id, 'down')}
-                          disabled={index === lotMedia.filter(m => m.type === 'photo').length - 1}
-                          className="p-1 bg-white rounded text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Move down"
-                        >
-                          ↓
-                        </button>
-                        <button 
-                          onClick={() => deleteMedia(photo.id)}
-                          className="p-1 bg-rose-600 rounded text-white hover:bg-rose-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Delete this photo? This action cannot be undone.')) {
+                              deleteMedia(photo.id);
+                            }
+                          }}
+                          className="px-3 py-2 bg-red-500 rounded-lg text-white hover:bg-red-600 font-medium text-sm transform transition-all duration-150 hover:scale-110 active:scale-95 shadow-soft"
                           title="Delete photo"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-4 h-4 mx-auto" />
                         </button>
                       </div>
                     </div>
-                    <div className="absolute top-1 left-1 bg-black bg-opacity-75 text-white text-xs px-1 rounded">
+                    
+                    {/* Photo index indicator */}
+                    <div className="absolute top-2 left-2 bg-brand-accent text-white text-sm px-2 py-1 rounded-lg font-medium shadow-soft">
                       #{photo.index}
                     </div>
                   </div>

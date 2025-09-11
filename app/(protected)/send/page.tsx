@@ -10,6 +10,7 @@ import { upsertLot } from '../../../src/lib/supabaseSync';
 import { getMediaBlob } from '../../../src/lib/blobStore';
 import { useRouter } from 'next/navigation';
 import JSZip from 'jszip';
+import { ArrowLeft } from 'lucide-react';
 
 export default function SendPage() {
   const router = useRouter();
@@ -468,9 +469,17 @@ export default function SendPage() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Send Data</h1>
-            <p className="text-gray-600 mt-1">Upload and export your lot data</p>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={() => router.push('/')}
+              className="w-12 h-12 bg-brand-panel rounded-xl flex items-center justify-center hover:bg-brand-border transition-all duration-150 transform hover:scale-105 active:scale-95 shadow-soft"
+            >
+              <ArrowLeft className="w-6 h-6 text-brand-text" />
+            </button>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-brand-text">Send Data</h1>
+              <p className="text-brand-text-muted mt-1">Upload and export your lot data</p>
+            </div>
           </div>
         </div>
       

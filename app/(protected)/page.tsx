@@ -9,6 +9,13 @@ import { Auction } from "../../src/types";
 import QuickOverview from "../../src/components/QuickOverview";
 import { useAuctionStats } from "../../src/hooks/useAuctionStats";
 
+// Helper function for haptic feedback
+const addHapticFeedback = () => {
+  if (navigator.vibrate) {
+    navigator.vibrate(30);
+  }
+};
+
 export default function Home() {
   const router = useRouter();
   const [currentAuction, setCurrentAuction] = useState<Auction | null>(null);
@@ -67,7 +74,7 @@ export default function Home() {
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-2 h-2 bg-brand-accent rounded-full"></div>
                 <h2 className="text-lg font-semibold text-brand-text truncate">
-                  Current auction: {currentAuction.name}
+                  Current auction: <span className="text-green-600 font-bold">{currentAuction.name}</span>
                 </h2>
               </div>
               <p className="text-sm text-brand-text-muted">
@@ -86,8 +93,9 @@ export default function Home() {
       {/* Main Actions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Link 
-            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-gray-300 transition-all group"
+            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-brand-accent/20 transition-all duration-200 transform hover:scale-105 active:scale-95 group"
             href="/new"
+            onClick={addHapticFeedback}
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-brand-text">New Entry</h3>
@@ -99,8 +107,9 @@ export default function Home() {
           </Link>
           
           <Link 
-            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-gray-300 transition-all group"
+            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-brand-accent/20 transition-all duration-200 transform hover:scale-105 active:scale-95 group"
             href="/review"
+            onClick={addHapticFeedback}
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-brand-text">Review Data</h3>
@@ -112,8 +121,9 @@ export default function Home() {
           </Link>
           
           <Link 
-            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-gray-300 transition-all group"
+            className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border hover:shadow-medium hover:border-brand-accent/20 transition-all duration-200 transform hover:scale-105 active:scale-95 group"
             href="/send"
+            onClick={addHapticFeedback}
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-brand-text">Send Data</h3>
