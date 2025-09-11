@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import { uid } from '../../../src/lib/id';
-import { saveMediaBlob, deleteMediaBlob } from '../../../src/lib/blobStore';
+import { saveMediaBlob, deleteMediaBlob, deleteMediaCompletely } from '../../../src/lib/blobStore';
 import { downscaleImage } from '@/lib/files';
 import AudioRecorder from '../../../src/components/AudioRecorder';
 import AudioPlayer from '../../../src/components/AudioPlayer';
@@ -12,6 +12,7 @@ import { getCurrentAuction } from '../../../src/lib/currentAuction';
 import { useRouter } from 'next/navigation';
 import CameraCapture from '../../../src/components/CameraCapture';
 import LotThumbnail from '../../../src/components/LotThumbnail';
+import LightboxCarousel from '../../../src/components/LightboxCarousel';
 import { ArrowLeft, Trash2, Plus, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function ReviewPage() {
@@ -22,6 +23,8 @@ export default function ReviewPage() {
   const [lotMedia, setLotMedia] = useState<MediaItem[]>([]);
   const [allMedia, setAllMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   const loadLots = useCallback(async () => {
     if (!currentAuctionId) return;
@@ -203,12 +206,42 @@ export default function ReviewPage() {
     }
     
     try {
-      await db.media.delete(mediaId);
-      await deleteMediaBlob(mediaId);
+      await deleteMediaCompletely(mediaId);
       loadLotMedia(selectedLot!.id);
     } catch (error) {
       console.error('Error deleting media:', error);
     }
+  };
+
+  const handlePhotoDelete = async (mediaId: string) => {
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+    
+    try {
+      // Optimistically remove from local state
+      setLotMedia(prev => prev.filter(m => m.id !== mediaId));
+      setAllMedia(prev => prev.filter(m => m.id !== mediaId));
+      
+      // Delete from database
+      await deleteMediaCompletely(mediaId);
+      
+      // If this was the last photo, close the lightbox
+      const photos = lotMedia.filter(m => m.type === 'photo' && m.id !== mediaId);
+      if (photos.length === 0) {
+        setLightboxOpen(false);
+      }
+    } catch (error) {
+      console.error('Error deleting photo:', error);
+      // Revert optimistic update on error
+      loadLotMedia(selectedLot!.id);
+    }
+  };
+
+  const openLightbox = (photoIndex: number) => {
+    setLightboxIndex(photoIndex);
+    setLightboxOpen(true);
   };
 
   const handleMainVoiceRecord = async (file: File) => {
@@ -471,7 +504,10 @@ export default function ReviewPage() {
                 {lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index).map((photo, index) => (
                   <div key={photo.id} className="relative group">
                     {/* Photo thumbnail with click to view */}
-                    <div className="cursor-pointer transform transition-all duration-150 hover:scale-105">
+                    <div 
+                      className="cursor-pointer transform transition-all duration-150 hover:scale-105"
+                      onClick={() => openLightbox(index)}
+                    >
                       <LotThumbnail mediaItem={photo} size="medium" className="w-full" />
                     </div>
                     
@@ -506,7 +542,7 @@ export default function ReviewPage() {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (confirm('Delete this photo? This action cannot be undone.')) {
-                              deleteMedia(photo.id);
+                              handlePhotoDelete(photo.id);
                             }
                           }}
                           className="px-3 py-2 bg-red-500 rounded-lg text-white hover:bg-red-600 font-medium text-sm transform transition-all duration-150 hover:scale-110 active:scale-95 shadow-soft"
@@ -618,6 +654,17 @@ export default function ReviewPage() {
               )}
             </div>
           </div>
+        )}
+        
+        {/* Lightbox Carousel */}
+        {selectedLot && (
+          <LightboxCarousel
+            open={lightboxOpen}
+            onOpenChange={setLightboxOpen}
+            items={lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index)}
+            startIndex={lightboxIndex}
+            onDelete={handlePhotoDelete}
+          />
         )}
       </div>
     </div>
