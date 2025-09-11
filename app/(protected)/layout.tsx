@@ -1,3 +1,5 @@
+'use client';
+
 import AuthGuard from "@/components/AuthGuard";
 import AppHeader from "@/components/AppHeader";
 
