@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { getServerEnv } from '@/src/lib/env';
+import { getServerEnv } from '@/lib/env';
 
 // Interface for the data sent from client
 interface EmailExportData {

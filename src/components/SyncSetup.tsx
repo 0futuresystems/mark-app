@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
-import { setSyncToastHandler, processSyncQueue, processPendingMediaSyncs } from '@/src/lib/supabaseSync'
-import { useToast } from '@/src/contexts/ToastContext'
+import { setSyncToastHandler, processSyncQueue, processPendingMediaSyncs } from '@/lib/supabaseSync'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function SyncSetup() {
   const { showToast } = useToast()

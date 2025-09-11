@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, isSupabaseConfigured } from '@/src/lib/supabaseClient'
-import { getPublicEnv } from '@/src/lib/env'
-import { useAuth } from '@/src/contexts/AuthContext'
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
+import { getPublicEnv } from '@/lib/env'
+import { useAuth } from '@/contexts/AuthContext'
 import { CheckCircle, XCircle, AlertCircle, User, Database, RefreshCw } from 'lucide-react'
 
 interface QueryResult {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useSyncStore } from '@/src/lib/sync/state'
+import { useSyncStore } from '@/lib/sync/state'
 import { useEffect } from 'react'
 
 export default function SyncBanner() {

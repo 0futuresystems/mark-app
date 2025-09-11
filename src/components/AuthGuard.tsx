@@ -1,6 +1,6 @@
 'use client'
 
-import { useAuth } from '@/src/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import { LogIn, ArrowRight } from 'lucide-react'
 

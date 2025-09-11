@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, isSupabaseConfigured } from '@/src/lib/supabaseClient'
-import { useAuth } from '@/src/contexts/AuthContext'
-import { useToast } from '@/src/contexts/ToastContext'
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
+import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
 import { useRouter } from 'next/navigation'
 import { Mail, ArrowRight, AlertTriangle, KeyRound, CheckCircle } from 'lucide-react'
 

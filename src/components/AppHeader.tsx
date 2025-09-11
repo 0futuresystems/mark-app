@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/src/contexts/AuthContext'
-import { getSyncQueueStatus } from '@/src/lib/supabaseSync'
+import { useAuth } from '@/contexts/AuthContext'
+import { getSyncQueueStatus } from '@/lib/supabaseSync'
 import { ChevronDown, LogOut, Mail } from 'lucide-react'
 
 export default function AppHeader() {

@@ -1,5 +1,5 @@
-import AuthGuard from "@/src/components/AuthGuard";
-import AppHeader from "@/src/components/AppHeader";
+import AuthGuard from "@/components/AuthGuard";
+import AppHeader from "@/components/AppHeader";
 
 export default function ProtectedLayout({
   children,

@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useAuth } from '@/src/contexts/AuthContext'
-import { useSyncStore } from '@/src/lib/sync/state'
-import { getSyncQueueStatus } from '@/src/lib/supabaseSync'
+import { useAuth } from '@/contexts/AuthContext'
+import { useSyncStore } from '@/lib/sync/state'
+import { getSyncQueueStatus } from '@/lib/supabaseSync'
 
 export default function Header() {
   const { user, signOut } = useAuth()
