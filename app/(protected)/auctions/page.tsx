@@ -283,7 +283,7 @@ export default function AuctionsPage() {
                             )}
                           </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            Created: {new Date(auction.createdAt).toLocaleDateString()} • {lotCount} lots
+                            Created: {new Date(auction.createdAt).toLocaleDateString()} - {lotCount} lots
                           </p>
                         </div>
                       )}
