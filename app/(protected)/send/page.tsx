@@ -296,8 +296,10 @@ export default function SendPage() {
         }),
       });
 
-      if (!emailResponse.ok) {
-        throw new Error(`Email failed: ${emailResponse.statusText}`);
+      const emailResult = await emailResponse.json();
+      
+      if (!emailResponse.ok || emailResult?.ok !== true) {
+        throw new Error(`Email failed: ${emailResult?.error || emailResponse.statusText}`);
       }
 
       // Step 5: Mark lots as synced
