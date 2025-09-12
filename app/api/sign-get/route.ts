@@ -2,48 +2,50 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { z } from 'zod';
+import { env } from '@/src/lib/env';
+import { ensureAuthed } from '@/src/lib/ensureAuthed';
+import { limit } from '@/src/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const signGetSchema = z.object({
+const Body = z.object({
   objectKey: z.string().min(1),
-  expiresSeconds: z.number().optional().default(7 * 24 * 60 * 60), // 7 days default
+  auctionId: z.string().min(1),
+  expiresSeconds: z.number().optional().default(3600), // 1 hour default
 });
 
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+const s3 = new S3Client({
+  region: "auto",
+  endpoint: env.server.R2_ENDPOINT,
   credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    accessKeyId: env.server.R2_ACCESS_KEY_ID,
+    secretAccessKey: env.server.R2_SECRET_ACCESS_KEY,
   },
-  forcePathStyle: true,
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    // Validate environment variables
-    if (!process.env.R2_ACCOUNT_ID || !process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
-      return NextResponse.json(
-        { error: 'R2 configuration missing' },
-        { status: 500 }
-      );
+    const user = await ensureAuthed();
+    if (!(await limit(`presign:${user.id}`, 120))) {
+      return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 });
+    }
+    
+    const { objectKey, auctionId, expiresSeconds } = Body.parse(await req.json());
+    
+    // Only allow access to keys under the user's prefix and specific auction
+    const expectedPrefix = `u/${user.id}/a/${auctionId}/`;
+    if (!objectKey.startsWith(expectedPrefix)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { objectKey, expiresSeconds } = signGetSchema.parse(body);
-
-    const command = new GetObjectCommand({
-      Bucket: process.env.R2_BUCKET,
+    const cmd = new GetObjectCommand({
+      Bucket: env.server.R2_BUCKET,
       Key: objectKey,
     });
 
-    const url = await getSignedUrl(s3Client, command, { expiresIn: expiresSeconds });
-
-    return NextResponse.json({
-      url,
-    });
+    const url = await getSignedUrl(s3, cmd, { expiresIn: expiresSeconds });
+    return Response.json({ url });
   } catch (error) {
     console.error('Error generating presigned GET URL:', error);
     
@@ -52,6 +54,10 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid request body', details: error.issues },
         { status: 400 }
       );
+    }
+
+    if ((error as any)?.status === 401) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     return NextResponse.json(

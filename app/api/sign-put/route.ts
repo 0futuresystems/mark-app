@@ -2,50 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { z } from 'zod';
+import { env } from '@/src/lib/env';
+import { ensureAuthed } from '@/src/lib/ensureAuthed';
+import { randomUUID } from 'crypto';
+import { limit } from '@/src/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const signPutSchema = z.object({
-  objectKey: z.string().min(1),
-  contentType: z.string().min(1),
+const Body = z.object({
+  auctionId: z.string().min(1),
+  contentType: z.enum(["image/jpeg","image/png","audio/m4a","audio/mp3"]),
 });
 
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+const s3 = new S3Client({
+  region: "auto",
+  endpoint: env.server.R2_ENDPOINT,
   credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    accessKeyId: env.server.R2_ACCESS_KEY_ID,
+    secretAccessKey: env.server.R2_SECRET_ACCESS_KEY,
   },
-  forcePathStyle: true,
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    // Validate environment variables
-    if (!process.env.R2_ACCOUNT_ID || !process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
-      return NextResponse.json(
-        { error: 'R2 configuration missing' },
-        { status: 500 }
-      );
+    const user = await ensureAuthed();
+    if (!(await limit(`presign:${user.id}`, 120))) {
+      return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 });
     }
+    const { auctionId, contentType } = Body.parse(await req.json());
+    const key = `u/${user.id}/a/${auctionId}/${randomUUID()}`;
 
-    const body = await request.json();
-    const { objectKey, contentType } = signPutSchema.parse(body);
-
-    const command = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
-      Key: objectKey,
+    const cmd = new PutObjectCommand({
+      Bucket: env.server.R2_BUCKET,
+      Key: key,
       ContentType: contentType,
+      ACL: "private",
     });
 
-    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
-
-    return NextResponse.json({
-      url,
-      method: 'PUT' as const,
-    });
+    const url = await getSignedUrl(s3, cmd, { expiresIn: 60 });
+    return Response.json({ url, key });
   } catch (error) {
     console.error('Error generating presigned PUT URL:', error);
     
@@ -54,6 +50,10 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid request body', details: error.issues },
         { status: 400 }
       );
+    }
+
+    if ((error as any)?.status === 401) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     return NextResponse.json(
