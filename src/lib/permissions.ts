@@ -1,8 +1,10 @@
 // src/lib/permissions.ts
+import { cameraEnv } from './cameraEnv';
+
 export async function ensureCameraAccess(): Promise<void> {
+  const env = cameraEnv();
   // For HTTP (not secure), skip probing; the file input will still open the camera UI.
-  if (typeof window !== 'undefined' && !window.isSecureContext) return;
-  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
+  if (!env.canUseCamera) return;
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -13,8 +15,9 @@ export async function ensureCameraAccess(): Promise<void> {
 }
 
 export async function ensureMicAccess(): Promise<void> {
+  const env = cameraEnv();
   // Microphone requires HTTPS on iOS
-  if (typeof window !== 'undefined' && !window.isSecureContext) {
+  if (!env.canUseCamera) {
     throw new Error('Microphone requires a secure (HTTPS) URL. Use ngrok/Cloudflare Tunnel or a deployed URL.');
   }
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {

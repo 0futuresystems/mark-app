@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, Flashlight, RefreshCcw, Check, X } from 'lucide-react';
+import { cameraEnv } from '@/lib/cameraEnv';
 import './camera/ios-camera.css';
 import './camera/ios-camera-review.css';
 
@@ -31,6 +32,8 @@ export default function MultiShotCamera({
   const [flash, setFlash] = useState(false);
   const [usingEnv, setUsingEnv] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
+
+  const env = cameraEnv();
   
   // Review mode state
   const [mode, setMode] = useState<'capture'|'review'>('capture');
@@ -48,10 +51,11 @@ export default function MultiShotCamera({
     let cancelled = false;
     (async () => {
       try {
-        // HTTPS required on iOS
-        if (typeof window !== 'undefined' && !window.isSecureContext) {
-          throw new Error('Open this app over HTTPS (ngrok / Cloudflare Tunnel / deploy) to use the camera.');
+        if (!env.canUseCamera) {
+          setError('Camera requires HTTPS (or dev bypass).');
+          return;
         }
+        setError(null);
         const stream = await openVideoStream();
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
@@ -84,7 +88,7 @@ export default function MultiShotCamera({
       streamRef.current = null;
       cancelled = true;
     };
-  }, [usingEnv]);
+  }, [usingEnv, env.canUseCamera]);
 
   async function openVideoStream(): Promise<MediaStream> {
     const constraints: MediaStreamConstraints = {
@@ -249,12 +253,18 @@ export default function MultiShotCamera({
     const errorOverlay = (
       <div className="iosCam__overlay" role="dialog" aria-label="Camera" style={{ zIndex: 9999 }}>
         <div className="iosCam__topBar">
-          <button className="iosCam__btn iosCam__btn--ghost" onClick={onCancel}><X size={20}/>Cancel</button>
+          <button className="iosCam__btn iosCam__btn--ghost" onClick={onCancel}><X size={20}/>Close</button>
           <div style={{opacity:.9}}>Camera</div>
           <div></div>
         </div>
-        <div style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fca5a5', fontSize: 16, textAlign: 'center', padding: '0 20px'}}>
-          {error}
+        <div style={{flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fca5a5', fontSize: 16, textAlign: 'center', padding: '0 20px'}}>
+          <div className="mb-4">
+            <Camera size={48} className="opacity-50 mx-auto mb-4" />
+            <p className="text-lg font-medium mb-2">{error}</p>
+            <p className="text-sm opacity-75">
+              Camera requires HTTPS. In dev set <code className="bg-yellow-100 px-1 rounded">NEXT_PUBLIC_ALLOW_INSECURE_CAMERA=1</code> and restart, or open over https:// via ngrok.
+            </p>
+          </div>
         </div>
       </div>
     );
