@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getClientEnvSafe } from '@/lib/env'
 
 export default function EnvDebugPage() {
   const [envData, setEnvData] = useState<{
@@ -17,12 +16,15 @@ export default function EnvDebugPage() {
     if (isDev) return
 
     try {
-      const env = getClientEnvSafe()
+      // Direct process.env reads for client components
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+      
       setEnvData({
-        url: env.NEXT_PUBLIC_SUPABASE_URL,
-        key: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        hasUrl: !!env.NEXT_PUBLIC_SUPABASE_URL,
-        hasKey: !!env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        url,
+        key,
+        hasUrl: !!url,
+        hasKey: !!key
       })
     } catch (error) {
       console.error('Failed to get env:', error)
