@@ -44,14 +44,25 @@ export async function POST(req: Request) {
 
   try {
     const resend = new Resend(KEY)
-    const res = await resend.emails.send({
-      from: FROM,         // MUST be a verified domain or onboarding@resend.dev
-      to: TO,             // never accept client "to"
+    const result = await resend.emails.send({
+      from: FROM,                // onboarding@resend.dev or your verified sender
+      to: TO,                    // server-locked recipient
       subject: `${subject}${auctionId ? ` [${auctionId}]` : ''}`,
       text: textBody,
       attachments
     })
-    return NextResponse.json({ ok: true, id: res?.data?.id ?? null })
+
+    // IMPORTANT: Resend returns { data, error } rather than throwing on failure
+    if (result?.error) {
+      console.error('📧 Resend error:', result.error)
+      return NextResponse.json(
+        { error: result.error.message || 'Resend rejected the email' },
+        { status: 502 }
+      )
+    }
+
+    const id = result?.data?.id ?? null
+    return NextResponse.json({ ok: true, id })
   } catch (err: any) {
     console.error('📧 Email send failed:', {
       message: err?.message ?? String(err),
