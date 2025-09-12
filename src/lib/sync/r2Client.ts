@@ -3,7 +3,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getServerEnv } from '../env';
 
 export interface R2Config {
-  accountId: string;
+  endpoint: string;
   accessKeyId: string;
   secretAccessKey: string;
   bucketName: string;
@@ -29,19 +29,19 @@ export function getR2Config(): R2Config | null {
   if (r2Config) return r2Config;
 
   try {
-    const env = getServerEnv(['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']);
-    
-    if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY) {
+    const env = getServerEnv();
+
+    if (!env.R2_ENDPOINT || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY) {
       console.warn('R2 configuration incomplete');
       return null;
     }
 
     r2Config = {
-      accountId: env.R2_ACCOUNT_ID,
+      endpoint: env.R2_ENDPOINT,
       accessKeyId: env.R2_ACCESS_KEY_ID,
       secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-      bucketName: env.R2_BUCKET_NAME || 'lot-media',
-      publicUrl: env.R2_PUBLIC_URL || `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/lot-media`
+      bucketName: env.R2_BUCKET || 'lot-media',
+      publicUrl: `${env.R2_ENDPOINT}/lot-media`
     };
 
     return r2Config;
@@ -60,7 +60,7 @@ export function getR2Client(): S3Client | null {
   try {
     r2Client = new S3Client({
       region: 'auto',
-      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      endpoint: config.endpoint,
       credentials: {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,

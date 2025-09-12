@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { ensureAuthed } from '@/src/lib/ensureAuthed';
+import { ensureAuthed } from '@/lib/ensureAuthed';
 
 export const runtime = 'nodejs';
 

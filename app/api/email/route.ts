@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { z } from 'zod'
-import { env } from '@/src/lib/env'
-import { ensureAuthed } from '@/src/lib/ensureAuthed'
-import { limit } from '@/src/lib/rateLimit'
+import { env } from '@/lib/env'
+import { ensureAuthed } from '@/lib/ensureAuthed'
+import { limit } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

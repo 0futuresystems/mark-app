@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ensureAuthed } from '@/src/lib/ensureAuthed';
-import { limit } from '@/src/lib/rateLimit';
+import { ensureAuthed } from '@/lib/ensureAuthed';
+import { limit } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

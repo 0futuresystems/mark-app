@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { z } from 'zod';
-import { env } from '@/src/lib/env';
-import { ensureAuthed } from '@/src/lib/ensureAuthed';
+import { env } from '@/lib/env';
+import { ensureAuthed } from '@/lib/ensureAuthed';
 import { randomUUID } from 'crypto';
-import { limit } from '@/src/lib/rateLimit';
+import { limit } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
