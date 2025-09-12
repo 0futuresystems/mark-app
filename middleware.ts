@@ -7,7 +7,10 @@ export async function middleware(req: NextRequest) {
 
   // Origin / CSRF-style guard
   const origin = req.headers.get("origin");
-  if (!origin || origin !== process.env.NEXT_PUBLIC_APP_ORIGIN) {
+  const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN;
+  
+  // Allow if no APP_ORIGIN is set (development) or if origin matches
+  if (appOrigin && (!origin || origin !== appOrigin)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return NextResponse.next(); // per-route handlers will check user session

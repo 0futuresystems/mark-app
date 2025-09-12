@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
-import { getPublicEnv } from '@/lib/env'
 import { useAuth } from '@/contexts/AuthContext'
 import { CheckCircle, XCircle, AlertCircle, User, Database, RefreshCw } from 'lucide-react'
 
@@ -29,10 +28,13 @@ export default function SupabaseHealthPage() {
   
   useEffect(() => {
     try {
-      const publicEnv = getPublicEnv()
+      // Direct process.env reads for client components
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+      
       setEnvStatus({
-        hasUrl: !!publicEnv.NEXT_PUBLIC_SUPABASE_URL,
-        hasKey: !!publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        hasUrl: !!url,
+        hasKey: !!key
       })
     } catch (error) {
       console.error('Failed to get public env:', error)

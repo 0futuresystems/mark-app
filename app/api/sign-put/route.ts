@@ -17,14 +17,19 @@ const Body = z.object({
 export async function POST(req: Request) {
   try {
     // Lazy import to avoid validation during build
-    const { env } = await import('@/lib/env');
+    const { getServerEnv } = await import('@/lib/env');
+    const env = getServerEnv();
+    
+    if (!env.R2_ENDPOINT || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET) {
+      return NextResponse.json({ error: 'R2 configuration missing' }, { status: 500 });
+    }
     
     const s3 = new S3Client({
       region: "auto",
-      endpoint: env.server.R2_ENDPOINT,
+      endpoint: env.R2_ENDPOINT,
       credentials: {
-        accessKeyId: env.server.R2_ACCESS_KEY_ID,
-        secretAccessKey: env.server.R2_SECRET_ACCESS_KEY,
+        accessKeyId: env.R2_ACCESS_KEY_ID,
+        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       },
       forcePathStyle: true
     });
@@ -42,7 +47,7 @@ export async function POST(req: Request) {
 
     // 1) HEAD preflight
     try {
-      const head = await s3.send(new HeadObjectCommand({ Bucket: env.server.R2_BUCKET, Key: objectKey }));
+      const head = await s3.send(new HeadObjectCommand({ Bucket: env.R2_BUCKET, Key: objectKey }));
       const etag = head.ETag?.replace(/"/g, '') ?? 'existing';
       return NextResponse.json({ exists: true, key: objectKey, etag });
     } catch (e: any) {
@@ -54,7 +59,7 @@ export async function POST(req: Request) {
 
     // 2) Presign guarded PUT (If-None-Match:* prevents accidental overwrite)
     const cmd = new PutObjectCommand({
-      Bucket: env.server.R2_BUCKET,
+        Bucket: env.R2_BUCKET,
       Key: objectKey,
       ContentType: contentType,
       // @ts-ignore - IfNoneMatch is supported in S3 semantics
