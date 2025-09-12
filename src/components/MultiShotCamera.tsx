@@ -2,6 +2,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Camera, Flashlight, RefreshCcw, Check, X } from 'lucide-react';
+import './camera/ios-camera.css';
 
 // Type for experimental requestVideoFrameCallback (not yet in all browsers)
 interface VideoFrameCallbackElement {
@@ -23,6 +25,9 @@ export default function MultiShotCamera({
   const [shots, setShots] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [usingEnv, setUsingEnv] = useState(true);
+  const [torchOn, setTorchOn] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,13 +69,17 @@ export default function MultiShotCamera({
       streamRef.current = null;
       cancelled = true;
     };
-  }, []);
+  }, [usingEnv]);
 
   async function openVideoStream(): Promise<MediaStream> {
-    const rear: MediaStreamConstraints = { video: { facingMode: { ideal: 'environment' } }, audio: false };
-    const anyCam: MediaStreamConstraints = { video: true, audio: false };
-    try { return await navigator.mediaDevices.getUserMedia(rear); }
-    catch { return await navigator.mediaDevices.getUserMedia(anyCam); }
+    const constraints: MediaStreamConstraints = {
+      video: {
+        facingMode: usingEnv ? { ideal: 'environment' } : 'user',
+        width: { ideal: 1920 }, height: { ideal: 1080 }
+      },
+      audio: false
+    };
+    return await navigator.mediaDevices.getUserMedia(constraints);
   }
 
   function once(el: HTMLVideoElement, ev: keyof HTMLVideoElementEventMap) {
@@ -94,6 +103,11 @@ export default function MultiShotCamera({
     if (!videoRef.current || busy) return;
     setBusy(true);
     try {
+      // iOS-style feedback
+      navigator.vibrate?.(10);
+      setFlash(true);
+      setTimeout(() => setFlash(false), 140);
+
       const v = videoRef.current;
       const { videoWidth, videoHeight } = v;
       if (!videoWidth || !videoHeight) return;
@@ -120,97 +134,65 @@ export default function MultiShotCamera({
     setShots(prev => prev.filter((_, i) => i !== idx));
   }
 
-  // ---- Minimal, clean UI (no Tailwind) ----
+  const toggleTorch = async () => {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    const caps: any = track?.getCapabilities?.();
+    if (!track || !caps || !('torch' in caps)) return;
+    const next = !torchOn;
+    await track.applyConstraints({ advanced: [{ torch: next }] } as any).catch(()=>{});
+    setTorchOn(next);
+  };
+
+  const flip = () => setUsingEnv(v => !v);
+
+  if (error) {
+    return (
+      <div className="iosCam__overlay" role="dialog" aria-label="Camera">
+        <div className="iosCam__topBar">
+          <button className="iosCam__btn iosCam__btn--ghost" onClick={onCancel}><X size={20}/>Cancel</button>
+          <div style={{opacity:.9}}>Camera</div>
+          <div></div>
+        </div>
+        <div style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fca5a5', fontSize: 16, textAlign: 'center', padding: '0 20px'}}>
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  const last = shots[shots.length - 1];
+
   return (
-    <div style={s.overlay}>
-      <div style={s.sheet}>
-        <div style={s.header}>
-          <div style={s.title}>Camera (multi-shot)</div>
-          <button style={s.ghostBtn} onClick={onCancel}>Close</button>
+    <div className="iosCam__overlay" role="dialog" aria-label="Camera">
+      <div className="iosCam__topBar">
+        <button className="iosCam__btn iosCam__btn--ghost" onClick={onCancel}><X size={20}/>Cancel</button>
+        <div style={{opacity:.9}}>Camera</div>
+        <button className="iosCam__btn" onClick={() => onDone(shots)}><Check size={20}/>Done ({shots.length})</button>
+      </div>
+
+      <div className="iosCam__videoWrap">
+        <video ref={videoRef} className="iosCam__video" muted playsInline />
+        <div className="iosCam__grid" />
+        <div className={`iosCam__flash ${flash ? 'iosCam__flash--show' : ''}`} />
+      </div>
+
+      <div className="iosCam__bottomBar">
+        <button className="iosCam__thumb" onClick={() => onDone(shots)} aria-label="Review shots">
+          {last ? <img src={URL.createObjectURL(last)} alt="" /> : <div style={{width:'100%',height:'100%'}}/>}
+        </button>
+
+        <div className="iosCam__spacer" />
+        <button className="iosCam__shutterWrap" aria-label="Shutter" onClick={capture} disabled={busy}>
+          <div className="iosCam__shutterRing" />
+          <div className="iosCam__shutterCore" />
+        </button>
+        <div className="iosCam__spacer" />
+
+        <div className="iosCam__controls">
+          <button className="iosCam__btn iosCam__btn--ghost" onClick={flip} aria-label="Flip camera"><RefreshCcw size={20}/></button>
+          <button className="iosCam__btn iosCam__btn--ghost" onClick={toggleTorch} aria-label="Torch"><Flashlight size={20}/></button>
         </div>
-
-        {error && <div style={s.error}>{error}</div>}
-
-        <div style={s.videoWrap}>
-          <video ref={videoRef} playsInline muted style={s.video} />
-        </div>
-
-        <div style={s.toolbar}>
-          <button style={{...s.snapBtn, opacity: busy ? 0.6 : 1}} onClick={capture} disabled={busy}>
-            {busy ? '…' : 'Snap'}
-          </button>
-          <button style={s.primaryBtn} onClick={() => onDone(shots)} disabled={!shots.length}>
-            Done ({shots.length})
-          </button>
-          <button style={s.ghostBtn} onClick={onCancel}>Cancel</button>
-        </div>
-
-        {!!shots.length && (
-          <div style={s.thumbRow}>
-            {shots.map((f, i) => <Thumb key={i} file={f} onRemove={() => removeShot(i)} />)}
-          </div>
-        )}
       </div>
     </div>
   );
 }
-
-function Thumb({ file, onRemove }: { file: File; onRemove: () => void }) {
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    const u = URL.createObjectURL(file);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [file]);
-  return (
-    <div style={s.thumb}>
-      <img src={url} alt="" style={s.thumbImg} />
-      <button style={s.thumbX} onClick={onRemove} aria-label="Remove">×</button>
-    </div>
-  );
-}
-
-const s: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
-    zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12
-  },
-  sheet: {
-    width: '100%', maxWidth: 480, background: '#0e1117', color: '#fff',
-    borderRadius: 16, boxShadow: '0 10px 30px rgba(0,0,0,0.4)'
-  },
-  header: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)'
-  },
-  title: { fontSize: 16, fontWeight: 600 },
-  error: { color: '#fca5a5', fontSize: 13, padding: '8px 16px' },
-  videoWrap: {
-    position: 'relative', width: '100%', background: '#000', borderRadius: 12,
-    overflow: 'hidden', margin: 16, aspectRatio: '3 / 4'
-  },
-  video: { width: '100%', height: '100%', objectFit: 'cover' },
-  toolbar: {
-    display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center',
-    padding: '0 16px 16px'
-  },
-  primaryBtn: {
-    padding: '10px 16px', borderRadius: 12, background: '#2563eb', color: '#fff',
-    border: 'none', fontWeight: 600, fontSize: 14
-  },
-  ghostBtn: {
-    padding: '8px 12px', borderRadius: 10, background: '#1f2937', color: '#fff',
-    border: '1px solid rgba(255,255,255,0.08)', fontSize: 14
-  },
-  snapBtn: {
-    width: 64, height: 64, borderRadius: 9999, background: '#fff', color: '#111', border: 'none',
-    fontWeight: 700
-  },
-  thumbRow: { display: 'flex', gap: 8, overflowX: 'auto', padding: '0 16px 16px' },
-  thumb: { position: 'relative', width: 84, height: 84, borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' },
-  thumbImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  thumbX: {
-    position: 'absolute', top: -8, right: -8, width: 24, height: 24, borderRadius: 9999,
-    background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.2)'
-  }
-};
