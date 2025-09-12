@@ -3,9 +3,22 @@ import { MediaItem } from '../types';
 /**
  * Generate a consistent object key for R2 storage
  */
-export function generateObjectKey(media: MediaItem): string {
-  // Get auction ID from the lot
-  // Format: ${auctionId}/${lotId}/${media.id}.${extension}
+export function generateObjectKey(args: {
+  accountId?: string // optional
+  bucket?: string    // optional, not embedded if using presign
+  auctionId: string
+  lotId: string
+  mediaId: string
+  mime: string
+  index?: number
+}): string {
+  const ext = args.mime?.includes('jpeg') ? 'jpg' : (args.mime?.split('/')?.[1] || 'bin')
+  const idx = typeof args.index === 'number' ? String(args.index).padStart(3,'0') : '000'
+  return `media/${args.auctionId}/${args.lotId}/${idx}-${args.mediaId}.${ext}`
+}
+
+// Legacy function for backward compatibility
+export function generateObjectKeyLegacy(media: MediaItem): string {
   const extension = media.mime.split('/')[1] || 'jpg';
   return `media/${media.lotId}/${media.id}.${extension}`;
 }
@@ -58,6 +71,20 @@ export async function presignGet(objectKey: string, expiresSeconds: number = 7 *
   }
 
   return await response.json();
+}
+
+/**
+ * Simple helper to get presigned GET URL (returns just the URL string)
+ */
+export async function presignGetUrl(objectKey: string, expiresSeconds = 7*24*3600): Promise<string> {
+  const r = await fetch('/api/sign-get', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ objectKey, expiresSeconds })
+  })
+  if (!r.ok) throw new Error('Failed to presign GET')
+  const { url } = await r.json()
+  return url as string
 }
 
 /**

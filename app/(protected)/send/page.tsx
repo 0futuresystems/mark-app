@@ -10,7 +10,7 @@ import { ArrowLeft, Share2, Cloud, CheckCircle, AlertCircle, X, Download, Copy, 
 // Import new utilities
 import { getExportableData, createExportZip, shareZipFile, markLotsAsShared } from '../../../src/lib/exportLocal';
 import { listPendingMediaByAuction, getMediaBlob } from '../../../src/lib/blobStore';
-import { generateObjectKey, presignPut, presignGet, uploadBlobToR2 } from '../../../src/lib/r2';
+import { generateObjectKey, presignPut, presignGet, presignGetUrl, uploadBlobToR2 } from '../../../src/lib/r2';
 import { updateMediaItem } from '../../../src/lib/blobStore';
 import { downloadTextFile, copyToClipboard, buildCsvFromLots } from '../../../src/lib/client-utils';
 import { buildZipBundle } from '../../../src/lib/zip-bundle';
@@ -238,7 +238,13 @@ export default function SendPage() {
           }
 
           // Generate object key
-          const objectKey = generateObjectKey(media);
+          const objectKey = generateObjectKey({ 
+            auctionId: currentAuctionId, 
+            lotId: media.lotId, 
+            mediaId: media.id, 
+            mime: media.mime, 
+            index: media.index 
+          });
 
           // Get presigned PUT URL
           const presign = await presignPut(objectKey, media.mime);
@@ -274,7 +280,7 @@ export default function SendPage() {
         throw new Error(`${failedCount} media items failed to upload`);
       }
 
-      // Step 3: Generate CSV with presigned URLs
+      // Step 3: Re-query Dexie for updated media records and generate CSV with presigned URLs
       setSyncProgress({
         current: pendingMedia.length,
         total: pendingMedia.length,
@@ -282,15 +288,22 @@ export default function SendPage() {
         errors: []
       });
 
+      // Re-query Dexie to get updated media records with objectKey
+      const uploadedMedia = await db.media
+        .where('lotId')
+        .anyOf(lots.map(lot => lot.id))
+        .and(media => media.objectKey != null)
+        .toArray();
+
       const csvRows: string[] = [];
       csvRows.push('Lot ID,Media ID,Type,Object Key,Download URL');
       const generatedLinks: string[] = [];
 
-      for (const media of pendingMedia) {
+      for (const media of uploadedMedia) {
         try {
-          const presignedUrl = await presignGet(media.objectKey!, 7 * 24 * 60 * 60); // 7 days
-          csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},${presignedUrl.url}`);
-          generatedLinks.push(presignedUrl.url);
+          const presignedUrl = await presignGetUrl(media.objectKey!, 7 * 24 * 60 * 60); // 7 days
+          csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},${presignedUrl}`);
+          generatedLinks.push(presignedUrl);
         } catch (error) {
           console.error(`Failed to generate presigned URL for ${media.id}:`, error);
           csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},ERROR`);
@@ -316,7 +329,7 @@ export default function SendPage() {
       const { zipUrl } = await createAndUploadZip({ 
         auctionId: currentAuctionId, 
         lotMetas: lots, 
-        uploadedMedia: pendingMedia.filter(m => m.objectKey), 
+        uploadedMedia: uploadedMedia, 
         csvText: csvContent, 
         onProgress: setZipProgress 
       });
@@ -336,7 +349,7 @@ export default function SendPage() {
         },
         body: JSON.stringify({
           subject: `Mark App Export (ZIP) - ${auctionName}`,
-          summary: `Export from ${auctionName} with ${successCount} media items - ZIP download link included`,
+          summary: `Export from ${auctionName} with ${uploadedMedia.length} media items - ZIP download link included`,
           auctionId: currentAuctionId,
           // csv: undefined,      // <-- ensure we do NOT send as attachment
           links: [zipUrl]        // <-- the single ZIP link
@@ -353,7 +366,7 @@ export default function SendPage() {
         setLastEmail({
           id: emailResult?.id ?? null,
           at: new Date().toISOString(),
-          count: successCount
+          count: uploadedMedia.length
         });
         setZipDownloadUrl(zipUrl); // keep it in UI as a fallback
       }
