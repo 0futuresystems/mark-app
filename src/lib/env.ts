@@ -1,94 +1,49 @@
-/**
- * Safe environment variable handling that never throws at import time
- * All validation and error handling happens at runtime only
- */
+import { z } from "zod";
 
-export interface PublicEnv {
-  NEXT_PUBLIC_SUPABASE_URL: string
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: string
+const server = z.object({
+  R2_ENDPOINT: z.string().url(),
+  R2_BUCKET: z.string().min(1),
+  R2_ACCESS_KEY_ID: z.string().min(5),
+  R2_SECRET_ACCESS_KEY: z.string().min(5),
+  RESEND_API_KEY: z.string().min(5).optional(), // allow missing to run without email in dev
+  EMAIL_FROM: z.string().email().optional(),
+  NEXT_PUBLIC_APP_ORIGIN: z.string().url(),
+  EMAIL_ALLOWLIST: z.string().optional(), // comma-separated
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+});
+
+const client = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(10),
+});
+
+export const env = {
+  server: server.parse(process.env),
+  client: client.parse(process.env),
+};
+
+// Legacy compatibility functions
+export function getPublicEnv() {
+  return env.client;
 }
 
-export interface ServerEnv {
-  [key: string]: string | undefined
+export function getServerEnv() {
+  return env.server;
 }
 
-/**
- * Get public environment variables (safe for client-side use)
- * Never throws - returns empty strings for missing values
- */
-export function getPublicEnv(): PublicEnv {
-  return {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  }
-}
-
-/**
- * Get server-only environment variables with optional validation
- * Never throws at import time - only validates when called at runtime
- * 
- * @param requiredKeys - Array of environment variable keys that must be present in production
- * @returns Object with all server environment variables
- * @throws Only at runtime if required keys are missing in production
- */
-export function getServerEnv(requiredKeys: string[] = []): ServerEnv {
-  const env: ServerEnv = {}
-  
-  // Collect all environment variables (excluding public ones for security)
-  for (const [key, value] of Object.entries(process.env)) {
-    // Only include server-only variables (not NEXT_PUBLIC_*)
-    if (!key.startsWith('NEXT_PUBLIC_')) {
-      env[key] = value
-    }
-  }
-  
-  // Runtime validation for production
-  if (process.env.NODE_ENV === 'production' && requiredKeys.length > 0) {
-    const missingKeys: string[] = []
-    
-    for (const key of requiredKeys) {
-      if (!env[key] || env[key]?.trim() === '') {
-        missingKeys.push(key)
-      }
-    }
-    
-    if (missingKeys.length > 0) {
-      throw new Error(
-        `Missing required environment variables in production: ${missingKeys.join(', ')}`
-      )
-    }
-  }
-  
-  return env
-}
-
-/**
- * Check if public environment variables are properly configured
- * Safe to call anywhere - never throws
- */
 export function isPublicEnvConfigured(): boolean {
-  const env = getPublicEnv()
-  return !!(env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  return !!(env.client.NEXT_PUBLIC_SUPABASE_URL && env.client.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
-/**
- * Get a specific server environment variable safely
- * Returns undefined if not found, never throws
- */
 export function getServerEnvVar(key: string): string | undefined {
-  return process.env[key]
+  return (env.server as any)[key];
 }
 
-/**
- * Check if we're in a server environment
- */
 export function isServer(): boolean {
-  return typeof window === 'undefined'
+  return typeof window === 'undefined';
 }
 
-/**
- * Check if we're in a client environment
- */
 export function isClient(): boolean {
-  return typeof window !== 'undefined'
+  return typeof window !== 'undefined';
 }
