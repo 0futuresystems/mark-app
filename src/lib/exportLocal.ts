@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { db } from '../db';
 import { Lot, MediaItem } from '../types';
 import { getMediaBlob } from './blobStore';
+import { toArrayBuffer } from './toArrayBuffer';
 
 export interface ExportData {
   lots: Lot[];
@@ -96,6 +97,7 @@ export async function createExportZip(
   
   let currentStep = 0;
   const totalSteps = 3;
+  const errors: Array<{ id: string; reason: string }> = [];
 
   // Step 1: Generate CSV
   onProgress?.({
@@ -122,6 +124,10 @@ export async function createExportZip(
     try {
       const blob = await getMediaBlob(mediaItem.id);
       if (blob) {
+        // Normalize the blob using our fault-tolerant helper
+        const arrayBuffer = await toArrayBuffer(blob);
+        const normalizedBlob = new Blob([arrayBuffer], { type: blob.type || 'application/octet-stream' });
+        
         // Determine file extension based on media type and blob type
         let extension = '';
         if (mediaItem.type === 'photo') {
@@ -136,12 +142,17 @@ export async function createExportZip(
         const lot = lots.find(l => l.id === mediaItem.lotId);
         const fileName = `${lot?.number || 'unknown'}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}${extension}`;
         
-        mediaFolder?.file(fileName, blob);
+        mediaFolder?.file(fileName, normalizedBlob);
       } else {
         console.warn(`Missing media file for ${mediaItem.id}`);
+        errors.push({ id: mediaItem.id, reason: 'Media file not found in storage' });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error processing media ${mediaItem.id}:`, error);
+      errors.push({ 
+        id: mediaItem.id, 
+        reason: error?.message ?? String(error) 
+      });
     }
 
     processedMedia++;
@@ -163,6 +174,11 @@ export async function createExportZip(
   
   const today = new Date().toISOString().split('T')[0];
   const fileName = `mark-export_${auctionName.replace(/[^a-zA-Z0-9]/g, '_')}_${today}.zip`;
+  
+  // Log any errors for debugging (Share Now doesn't show them in UI)
+  if (errors.length > 0) {
+    console.warn(`Share Now: ${errors.length} media files skipped:`, errors);
+  }
   
   return new File([zipBlob], fileName, { type: 'application/zip' });
 }
