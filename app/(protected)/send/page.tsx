@@ -5,13 +5,14 @@ import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import { getCurrentAuction } from '../../../src/lib/currentAuction';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Share2, Cloud, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Share2, Cloud, CheckCircle, AlertCircle, X, Download, Copy, Mail, ExternalLink } from 'lucide-react';
 
 // Import new utilities
 import { getExportableData, createExportZip, shareZipFile, markLotsAsShared } from '../../../src/lib/exportLocal';
 import { listPendingMediaByAuction, getMediaBlob } from '../../../src/lib/blobStore';
 import { generateObjectKey, presignPut, presignGet, uploadBlobToR2 } from '../../../src/lib/r2';
 import { updateMediaItem } from '../../../src/lib/blobStore';
+import { downloadTextFile, copyToClipboard, buildCsvFromLots } from '../../../src/lib/client-utils';
 
 export default function SendPage() {
   const router = useRouter();
@@ -36,6 +37,13 @@ export default function SendPage() {
   } | null>(null);
   const [syncResult, setSyncResult] = useState<{success: number; failed: number; skipped: number; errors: string[]} | null>(null);
   const [syncSuccess, setSyncSuccess] = useState(false);
+  
+  // New states for delivery confirmation and fallbacks
+  const [lastEmail, setLastEmail] = useState<{id: string | null; at: string; count: number} | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [csvText, setCsvText] = useState<string>('');
+  const [links, setLinks] = useState<string[]>([]);
+  const [showToast, setShowToast] = useState<string | null>(null);
 
   // Load current auction on mount
   useEffect(() => {
@@ -121,6 +129,11 @@ export default function SendPage() {
     return `${diffDays}d ago`;
   };
 
+  const showToastMessage = (message: string) => {
+    setShowToast(message);
+    setTimeout(() => setShowToast(null), 3000);
+  };
+
   const handleShareNow = async () => {
     if (!currentAuctionId) return;
 
@@ -166,6 +179,10 @@ export default function SendPage() {
     setSyncProgress(null);
     setSyncResult(null);
     setSyncSuccess(false);
+    setSyncError(null);
+    setLastEmail(null);
+    setCsvText('');
+    setLinks([]);
 
     try {
       // Step 1: Get pending media
@@ -259,11 +276,13 @@ export default function SendPage() {
 
       const csvRows: string[] = [];
       csvRows.push('Lot ID,Media ID,Type,Object Key,Download URL');
+      const generatedLinks: string[] = [];
 
       for (const media of pendingMedia) {
         try {
           const presignedUrl = await presignGet(media.objectKey!, 7 * 24 * 60 * 60); // 7 days
           csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},${presignedUrl.url}`);
+          generatedLinks.push(presignedUrl.url);
         } catch (error) {
           console.error(`Failed to generate presigned URL for ${media.id}:`, error);
           csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},ERROR`);
@@ -271,6 +290,8 @@ export default function SendPage() {
       }
 
       const csvContent = csvRows.join('\n');
+      setCsvText(csvContent);
+      setLinks(generatedLinks);
 
       // Step 4: Send email
       setSyncProgress({
@@ -293,13 +314,22 @@ export default function SendPage() {
           summary: `Export from ${auctionName} with ${successCount} media items`,
           auctionId: currentAuctionId,
           csv: csvContent,
+          links: generatedLinks,
         }),
       });
 
       const emailResult = await emailResponse.json();
       
       if (!emailResponse.ok || emailResult?.ok !== true) {
+        setSyncError(`Email failed: ${emailResult?.error || emailResponse.statusText}`);
         throw new Error(`Email failed: ${emailResult?.error || emailResponse.statusText}`);
+      } else {
+        setSyncError(null);
+        setLastEmail({
+          id: emailResult?.id ?? null,
+          at: new Date().toISOString(),
+          count: generatedLinks.length
+        });
       }
 
       // Step 5: Mark lots as synced
@@ -330,6 +360,60 @@ export default function SendPage() {
     } finally {
       setSyncing(false);
       setSyncProgress(null);
+    }
+  };
+
+  // Fallback action functions
+  const handleDownloadCSV = () => {
+    if (csvText) {
+      downloadTextFile('mark-app-export.csv', csvText);
+    }
+  };
+
+  const handleCopyLinks = async () => {
+    if (links.length > 0) {
+      try {
+        await copyToClipboard(links.join('\n'));
+        showToastMessage(`Copied ${links.length} links`);
+      } catch (error) {
+        showToastMessage('Failed to copy links');
+      }
+    }
+  };
+
+  const handleResendLinksOnly = async () => {
+    if (!currentAuctionId || links.length === 0) return;
+
+    try {
+      const auction = await db.auctions.get(currentAuctionId);
+      const auctionName = auction?.name || 'Unknown';
+
+      const emailResponse = await fetch('/api/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          subject: `Mark App Export - ${auctionName} (links only)`, 
+          summary: `Export from ${auctionName} with ${links.length} media links (no attachment)`,
+          auctionId: currentAuctionId, 
+          links 
+        })
+      });
+
+      const emailResult = await emailResponse.json();
+      
+      if (!emailResponse.ok || emailResult?.ok !== true) {
+        setSyncError(`Email (links-only) failed: ${emailResult?.error || emailResponse.statusText}`);
+      } else {
+        setSyncError(null);
+        setLastEmail({ 
+          id: emailResult?.id ?? null, 
+          at: new Date().toISOString(), 
+          count: links.length 
+        });
+        showToastMessage('Links-only email sent successfully');
+      }
+    } catch (error) {
+      setSyncError(`Failed to resend email: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -404,6 +488,72 @@ export default function SendPage() {
               </button>
               </div>
               </div>
+        )}
+
+        {/* Delivery Confirmation Panel */}
+        {lastEmail && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="w-5 h-5 text-blue-600" />
+                <span className="text-blue-800 font-medium">✅ Email request accepted</span>
+              </div>
+              <button
+                onClick={() => setLastEmail(null)}
+                className="text-blue-600 hover:text-blue-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2 text-sm text-blue-700">
+              {lastEmail.id && (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Resend ID:</span>
+                  <code className="bg-blue-100 px-2 py-1 rounded text-xs font-mono">
+                    {lastEmail.id}
+                  </code>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Sent:</span>
+                <span>{formatRelativeTime(lastEmail.at)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Files:</span>
+                <span>{lastEmail.count} media links</span>
+              </div>
+              <div className="pt-2">
+                <a 
+                  href="/api/_email-health" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Check email health
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Display */}
+        {syncError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <span className="text-red-800 font-medium">Email Error</span>
+              </div>
+              <button
+                onClick={() => setSyncError(null)}
+                className="text-red-600 hover:text-red-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-red-700 text-sm mt-2">{syncError}</p>
+          </div>
         )}
 
         {syncSuccess && (
@@ -535,6 +685,45 @@ export default function SendPage() {
           </div>
         )}
 
+        {/* Fallback Actions Panel */}
+        {(csvText || links.length > 0) && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
+            <h3 className="font-semibold text-gray-900 mb-4">Sync Complete - Fallback Actions</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Download your data locally or resend the email with different options.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {csvText && (
+                <button
+                  onClick={handleDownloadCSV}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  <Download className="w-4 h-4" />
+                  Download CSV
+                </button>
+              )}
+              {links.length > 0 && (
+                <>
+                  <button
+                    onClick={handleCopyLinks}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Copy Links
+                  </button>
+                  <button
+                    onClick={handleResendLinksOnly}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Resend Email (Links Only)
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Error Display */}
         {syncResult && syncResult.errors.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-8">
@@ -551,6 +740,13 @@ export default function SendPage() {
             >
               Retry Sync
                 </button>
+          </div>
+        )}
+
+        {/* Toast Message */}
+        {showToast && (
+          <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+            {showToast}
           </div>
         )}
       </div>
