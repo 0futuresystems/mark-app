@@ -7,7 +7,7 @@ const server = z.object({
   R2_SECRET_ACCESS_KEY: z.string().min(5),
   RESEND_API_KEY: z.string().min(5).optional(), // allow missing to run without email in dev
   EMAIL_FROM: z.string().email().optional(),
-  NEXT_PUBLIC_APP_ORIGIN: z.string().url(),
+  NEXT_PUBLIC_APP_ORIGIN: z.string().url().optional(),
   EMAIL_ALLOWLIST: z.string().optional(), // comma-separated
   UPSTASH_REDIS_REST_URL: z.string().url().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
@@ -78,7 +78,7 @@ export function getEmailEnv() {
 
 // Legacy compatibility functions
 export function getPublicEnv() {
-  return env.client;
+  return getClientEnvSafe();
 }
 
 export function getServerEnv() {
@@ -86,7 +86,12 @@ export function getServerEnv() {
 }
 
 export function isPublicEnvConfigured(): boolean {
-  return !!(env.client.NEXT_PUBLIC_SUPABASE_URL && env.client.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  try {
+    const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getClientEnvSafe();
+    return !!(NEXT_PUBLIC_SUPABASE_URL && NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  } catch {
+    return false;
+  }
 }
 
 export function getServerEnvVar(key: string): string | undefined {

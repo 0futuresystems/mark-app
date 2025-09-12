@@ -20,8 +20,13 @@ export function getSupabaseClient() {
   return _supabase;
 }
 
-// Legacy export for backward compatibility
-export const supabase = getSupabaseClient();
+// Legacy export for backward compatibility - lazy getter
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(target, prop) {
+    const client = getSupabaseClient();
+    return (client as any)[prop];
+  }
+});
 
 // Export a function to check if Supabase is properly configured
 export function isSupabaseConfigured(): boolean {
