@@ -17,7 +17,8 @@ type Body = {
 export async function POST(req: Request) {
   const TO    = process.env.SYNC_TO_EMAIL       // hard-locked recipient
   const KEY   = process.env.RESEND_API_KEY
-  const FROM  = process.env.EMAIL_FROM || 'Mark App <onboarding@resend.dev>' // safe default
+// Hard-lock a known-good sender for testing/delivery
+const FROM = 'Mark App <onboarding@resend.dev>' // ignore EMAIL_FROM for now
 
   if (!TO)  return NextResponse.json({ error: 'SYNC_TO_EMAIL not configured' }, { status: 500 })
   if (!KEY) return NextResponse.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 })
@@ -45,14 +46,14 @@ export async function POST(req: Request) {
   try {
     const resend = new Resend(KEY)
     const result = await resend.emails.send({
-      from: FROM,                // onboarding@resend.dev or your verified sender
-      to: TO,                    // server-locked recipient
+      from: FROM,                      // server-enforced sender
+      to: TO,                          // server-enforced recipient
       subject: `${subject}${auctionId ? ` [${auctionId}]` : ''}`,
       text: textBody,
-      attachments
+      attachments                      // may be undefined
     })
 
-    // IMPORTANT: Resend returns { data, error } rather than throwing on failure
+    // Resend returns { data, error } instead of throwing
     if (result?.error) {
       console.error('📧 Resend error:', result.error)
       return NextResponse.json(
