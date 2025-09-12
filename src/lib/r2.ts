@@ -1,4 +1,21 @@
 import { MediaItem } from '../types';
+import { S3Client } from "@aws-sdk/client-s3";
+import { getServerEnv } from "./env";
+
+let _client: S3Client | null = null;
+export function r2() {
+  if (_client) return _client;
+  const env = getServerEnv();
+  _client = new S3Client({
+    region: "auto",
+    endpoint: env.R2_ENDPOINT!,
+    credentials: {
+      accessKeyId: env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY!,
+    },
+  });
+  return _client;
+}
 
 /**
  * Generate a consistent object key for R2 storage

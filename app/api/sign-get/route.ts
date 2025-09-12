@@ -14,15 +14,17 @@ const Body = z.object({
   expiresSeconds: z.number().optional().default(3600), // 1 hour default
 });
 
+const R2Schema = z.object({
+  R2_ENDPOINT: z.string().url(),
+  R2_BUCKET: z.string().min(1),
+  R2_ACCESS_KEY_ID: z.string().min(1),
+  R2_SECRET_ACCESS_KEY: z.string().min(1),
+});
+
 export async function POST(req: Request) {
   try {
-    // Lazy import to avoid validation during build
-    const { getServerEnv } = await import('@/lib/env');
-    const env = getServerEnv();
-    
-    if (!env.R2_ENDPOINT || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET) {
-      return NextResponse.json({ error: 'R2 configuration missing' }, { status: 500 });
-    }
+    // LAZY validation at request-time (not at import)
+    const env = R2Schema.parse(process.env);
     
     const s3 = new S3Client({
       region: "auto",
@@ -31,6 +33,7 @@ export async function POST(req: Request) {
         accessKeyId: env.R2_ACCESS_KEY_ID,
         secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       },
+      forcePathStyle: true
     });
     
     const user = await ensureAuthed();
