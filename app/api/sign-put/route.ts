@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { z } from 'zod';
 import { ensureAuthed } from '@/lib/ensureAuthed';
-import { randomUUID } from 'crypto';
 import { limit } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
@@ -11,7 +10,8 @@ export const dynamic = 'force-dynamic';
 
 const Body = z.object({
   auctionId: z.string().min(1),
-  contentType: z.enum(["image/jpeg","image/png","audio/m4a","audio/mp3"]),
+  objectKey: z.string().min(3),
+  contentType: z.string().min(3),
 });
 
 export async function POST(req: Request) {
@@ -26,24 +26,43 @@ export async function POST(req: Request) {
         accessKeyId: env.server.R2_ACCESS_KEY_ID,
         secretAccessKey: env.server.R2_SECRET_ACCESS_KEY,
       },
+      forcePathStyle: true
     });
     
     const user = await ensureAuthed();
     if (!(await limit(`presign:${user.id}`, 120))) {
       return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 });
     }
-    const { auctionId, contentType } = Body.parse(await req.json());
-    const key = `u/${user.id}/a/${auctionId}/${randomUUID()}`;
+    const { auctionId, objectKey, contentType } = Body.parse(await req.json());
 
+    // Sanity check: ensure prefix belongs to user & auction
+    if (!objectKey.startsWith(`u/${user.id}/a/${auctionId}/`)) {
+      return NextResponse.json({ error: 'bad key scope' }, { status: 400 });
+    }
+
+    // 1) HEAD preflight
+    try {
+      const head = await s3.send(new HeadObjectCommand({ Bucket: env.server.R2_BUCKET, Key: objectKey }));
+      const etag = head.ETag?.replace(/"/g, '') ?? 'existing';
+      return NextResponse.json({ exists: true, key: objectKey, etag });
+    } catch (e: any) {
+      // Not found (continue), any other error should be surfaced
+      if (e?.$metadata?.httpStatusCode && e.$metadata.httpStatusCode !== 404) {
+        return NextResponse.json({ error: 'HEAD failed' }, { status: e.$metadata.httpStatusCode });
+      }
+    }
+
+    // 2) Presign guarded PUT (If-None-Match:* prevents accidental overwrite)
     const cmd = new PutObjectCommand({
       Bucket: env.server.R2_BUCKET,
-      Key: key,
+      Key: objectKey,
       ContentType: contentType,
-      ACL: "private",
+      // @ts-ignore - IfNoneMatch is supported in S3 semantics
+      IfNoneMatch: '*',
+      ACL: 'private'
     });
-
     const url = await getSignedUrl(s3, cmd, { expiresIn: 60 });
-    return Response.json({ url, key });
+    return NextResponse.json({ exists: false, key: objectKey, url });
   } catch (error) {
     console.error('Error generating presigned PUT URL:', error);
     

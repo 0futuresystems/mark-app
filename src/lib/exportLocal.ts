@@ -4,6 +4,20 @@ import { Lot, MediaItem } from '../types';
 import { getMediaBlob } from './blobStore';
 import { toArrayBuffer } from './toArrayBuffer';
 
+// Helper function to generate unique paths in ZIP
+function uniquePath(basePath: string, used: Set<string>) {
+  let p = basePath;
+  let i = 1;
+  const dot = basePath.lastIndexOf('.');
+  while (used.has(p)) {
+    p = dot > 0
+      ? `${basePath.slice(0, dot)}-${i++}${basePath.slice(dot)}`
+      : `${basePath}-${i++}`;
+  }
+  used.add(p);
+  return p;
+}
+
 export interface ExportData {
   lots: Lot[];
   media: MediaItem[];
@@ -98,6 +112,7 @@ export async function createExportZip(
   let currentStep = 0;
   const totalSteps = 3;
   const errors: Array<{ id: string; reason: string }> = [];
+  const used = new Set<string>();
 
   // Step 1: Generate CSV
   onProgress?.({
@@ -108,6 +123,7 @@ export async function createExportZip(
 
   const csvContent = generateCSVFromData(data);
   zip.file('lots_data.csv', csvContent);
+  used.add('lots_data.csv');
 
   // Step 2: Add media files
   onProgress?.({
@@ -140,9 +156,12 @@ export async function createExportZip(
 
         // Create predictable filename
         const lot = lots.find(l => l.id === mediaItem.lotId);
-        const fileName = `${lot?.number || 'unknown'}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}${extension}`;
+        const baseFileName = `${lot?.number || 'unknown'}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}${extension}`;
         
-        mediaFolder?.file(fileName, normalizedBlob);
+        // Generate unique path to avoid duplicates
+        const uniqueFileName = uniquePath(baseFileName, used);
+        
+        mediaFolder?.file(uniqueFileName, normalizedBlob);
       } else {
         console.warn(`Missing media file for ${mediaItem.id}`);
         errors.push({ id: mediaItem.id, reason: 'Media file not found in storage' });

@@ -9,27 +9,46 @@ export type ZipResult = {
   errors: Array<{ id: string; reason: string }>;
 }
 
+// Helper function to generate unique paths in ZIP
+function uniquePath(basePath: string, used: Set<string>) {
+  let p = basePath;
+  let i = 1;
+  const dot = basePath.lastIndexOf('.');
+  while (used.has(p)) {
+    p = dot > 0
+      ? `${basePath.slice(0, dot)}-${i++}${basePath.slice(dot)}`
+      : `${basePath}-${i++}`;
+  }
+  used.add(p);
+  return p;
+}
+
 export async function buildZipBundle(entries: ZipEntry[], csvText: string, onProgress?: (p:number)=>void): Promise<ZipResult> {
   const writer = new ZipWriter(new BlobWriter('application/zip'), {
     // @zip.js can report progress per entry; pass-through here
   })
   const errors: Array<{ id: string; reason: string }> = []
+  const used = new Set<string>()
   let done = 0
   const total = entries.length + 1 // +1 for CSV
 
   // Add CSV first
   await writer.add('export.csv', new BlobReader(new Blob([csvText], { type: 'text/csv' })))
+  used.add('export.csv')
   done += 1
   if (typeof onProgress === 'function') onProgress(Math.round((done / total) * 100))
 
-  // Add media with fault tolerance
+  // Add media with fault tolerance and deduplication
   for (const e of entries) {
     try {
       // Normalize the blob to ArrayBuffer using our helper
       const arrayBuffer = await toArrayBuffer(e.blob)
       const normalizedBlob = new Blob([arrayBuffer], { type: e.blob.type || 'application/octet-stream' })
       
-      await writer.add(e.path, new BlobReader(normalizedBlob), {
+      // Generate unique path to avoid duplicates
+      const uniqueZipPath = uniquePath(e.path, used)
+      
+      await writer.add(uniqueZipPath, new BlobReader(normalizedBlob), {
         onprogress: async (bytes, total) => {
           // best-effort progress per file; convert to coarse global
           if (typeof onProgress === 'function' && total) {

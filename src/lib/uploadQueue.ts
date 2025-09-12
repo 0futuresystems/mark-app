@@ -1,6 +1,8 @@
 import { db } from '../db';
 import { getMediaBlob } from './blobStore';
+import { objectKeyFor } from './mediaKey';
 import { upsertMedia } from './supabaseSync';
+import { supabase } from './supabaseClient';
 
 export interface UploadProgress {
   done: number;
@@ -99,23 +101,35 @@ async function uploadSingleMedia(media: any, onProgress?: (info: UploadProgress)
       return false;
     }
 
-    // Generate unique key for this upload
+    // Get lot and auction info for content-addressed key
     const lot = await db.lots.get(media.lotId);
     if (!lot) {
       console.warn(`Lot not found for media ${media.id}`);
       return false;
     }
 
-    const key = `Lot-${lot.number}/${media.type}/${media.id}`;
+    // Get current user ID from Supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.warn(`No authenticated user found for media ${media.id}`);
+      return false;
+    }
+
+    // Generate content-addressed key
+    const key = await objectKeyFor(blob, user.id, lot.auctionId, media.lotId, media.mimeType);
     let uploadSuccess = false;
 
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        // Request presigned URL from API
-        const signResponse = await fetch('/api/sign', {
+        // Request presigned URL from API with idempotent logic
+        const signResponse = await fetch('/api/sign-put', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key }),
+          body: JSON.stringify({ 
+            auctionId: lot.auctionId, 
+            objectKey: key, 
+            contentType: blob.type || 'application/octet-stream' 
+          }),
           signal: controller.signal
         });
 
@@ -123,61 +137,42 @@ async function uploadSingleMedia(media: any, onProgress?: (info: UploadProgress)
           throw new Error(`Failed to get presigned URL: ${signResponse.statusText}`);
         }
 
-        const { url } = await signResponse.json();
+        const presign = await signResponse.json();
 
-        // Upload the file
-        const uploadResponse = await fetch(url, {
+        // If file already exists, mark as success
+        if (presign.exists) {
+          console.log(`File already exists: ${media.id} -> ${key}`);
+          await markUploaded(media.id, key, blob, media);
+          uploadSuccess = true;
+          break;
+        }
+
+        // Upload the file via presigned PUT
+        const uploadResponse = await fetch(presign.url, {
           method: 'PUT',
           body: blob,
           headers: {
-            'Content-Type': blob.type,
+            'Content-Type': blob.type || 'application/octet-stream',
           },
           signal: controller.signal
         });
 
         if (uploadResponse.ok) {
-          // Extract media metadata
-          const metadata = await extractMediaMetadata(blob, media.type);
-          
-          // Mark as uploaded and store remote path and metadata
-          await db.media.update(media.id, { 
-            uploaded: true, 
-            remotePath: key,
-            bytesSize: metadata.bytes,
-            width: metadata.width,
-            height: metadata.height,
-            duration: metadata.duration,
-            needsSync: true // Mark for Supabase sync
-          });
-          
-          // Sync to Supabase (non-blocking)
-          try {
-            const kind = media.type === 'photo' ? 'photo' : 'audio';
-            await upsertMedia({
-              id: media.id,
-              lotId: media.lotId,
-              kind,
-              r2Key: key,
-              bytes: metadata.bytes,
-              width: metadata.width,
-              height: metadata.height,
-              duration: metadata.duration,
-              indexInLot: media.index
-            });
-            
-            // Mark as synced
-            await db.media.update(media.id, { needsSync: false });
-          } catch (syncError) {
-            console.warn(`Failed to sync media ${media.id} to Supabase:`, syncError);
-            // Keep needsSync flag for retry later
-          }
-          
+          await markUploaded(media.id, key, blob, media);
           uploadSuccess = true;
           console.log(`Successfully uploaded ${media.id}`);
           break;
-        } else {
-          throw new Error(`Upload failed: ${uploadResponse.statusText}`);
         }
+
+        // Treat duplicate statuses as success (object appeared concurrently or existed)
+        if ([409, 412].includes(uploadResponse.status)) {
+          console.log(`File already exists (${uploadResponse.status}): ${media.id} -> ${key}`);
+          await markUploaded(media.id, key, blob, media);
+          uploadSuccess = true;
+          break;
+        }
+
+        throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
         
       } catch (error: any) {
         if (error.name === 'AbortError') {
@@ -199,6 +194,45 @@ async function uploadSingleMedia(media: any, onProgress?: (info: UploadProgress)
     return false;
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+// Helper function to mark media as uploaded with metadata
+async function markUploaded(mediaId: string, key: string, blob: Blob, media: any) {
+  // Extract media metadata
+  const metadata = await extractMediaMetadata(blob, media.type);
+  
+  // Mark as uploaded and store remote path and metadata
+  await db.media.update(mediaId, { 
+    uploaded: true, 
+    remotePath: key,
+    bytesSize: metadata.bytes,
+    width: metadata.width,
+    height: metadata.height,
+    duration: metadata.duration,
+    needsSync: true // Mark for Supabase sync
+  });
+  
+  // Sync to Supabase (non-blocking)
+  try {
+    const kind = media.type === 'photo' ? 'photo' : 'audio';
+    await upsertMedia({
+      id: media.id,
+      lotId: media.lotId,
+      kind,
+      r2Key: key,
+      bytes: metadata.bytes,
+      width: metadata.width,
+      height: metadata.height,
+      duration: metadata.duration,
+      indexInLot: media.index
+    });
+    
+    // Mark as synced
+    await db.media.update(mediaId, { needsSync: false });
+  } catch (syncError) {
+    console.warn(`Failed to sync media ${mediaId} to Supabase:`, syncError);
+    // Keep needsSync flag for retry later
   }
 }
 
