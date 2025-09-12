@@ -17,14 +17,19 @@ const Body = z.object({
 export async function POST(req: Request) {
   try {
     // Lazy import to avoid validation during build
-    const { env } = await import('@/lib/env');
+    const { getServerEnv } = await import('@/lib/env');
+    const env = getServerEnv();
+    
+    if (!env.R2_ENDPOINT || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET) {
+      return NextResponse.json({ error: 'R2 configuration missing' }, { status: 500 });
+    }
     
     const s3 = new S3Client({
       region: "auto",
-      endpoint: env.server.R2_ENDPOINT,
+      endpoint: env.R2_ENDPOINT,
       credentials: {
-        accessKeyId: env.server.R2_ACCESS_KEY_ID,
-        secretAccessKey: env.server.R2_SECRET_ACCESS_KEY,
+        accessKeyId: env.R2_ACCESS_KEY_ID,
+        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       },
     });
     
@@ -42,7 +47,7 @@ export async function POST(req: Request) {
     }
 
     const cmd = new GetObjectCommand({
-      Bucket: env.server.R2_BUCKET,
+        Bucket: env.R2_BUCKET,
       Key: objectKey,
     });
 
