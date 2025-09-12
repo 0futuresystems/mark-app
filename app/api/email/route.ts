@@ -32,6 +32,14 @@ const FROM = 'Mark App <onboarding@resend.dev>' // ignore EMAIL_FROM for now
 
   const { subject = 'Mark App Export', summary, userId, auctionId, csv, links } = payload
 
+  // Optional allowlist to test another recipient
+  const allow = (process.env.EMAIL_TEST_ALLOW || '').split(',').map(s => s.trim()).filter(Boolean)
+  let finalTo = process.env.SYNC_TO_EMAIL!
+  if (payload && typeof (payload as any).to === 'string') {
+    const candidate = (payload as any).to.trim().toLowerCase()
+    if (allow.includes(candidate)) finalTo = candidate
+  }
+
   const textBody = [
     summary ? `Summary: ${summary}` : '',
     userId ? `User: ${userId}` : '',
@@ -47,7 +55,7 @@ const FROM = 'Mark App <onboarding@resend.dev>' // ignore EMAIL_FROM for now
     const resend = new Resend(KEY)
     const result = await resend.emails.send({
       from: FROM,                      // server-enforced sender
-      to: TO,                          // server-enforced recipient
+      to: finalTo,                     // server-enforced recipient (or allowlisted test)
       subject: `${subject}${auctionId ? ` [${auctionId}]` : ''}`,
       text: textBody,
       attachments                      // may be undefined
@@ -55,9 +63,12 @@ const FROM = 'Mark App <onboarding@resend.dev>' // ignore EMAIL_FROM for now
 
     // Resend returns { data, error } instead of throwing
     if (result?.error) {
-      console.error('📧 Resend error:', result.error)
+      console.error('📧 Resend error (full):', {
+        name: result.error.name,
+        message: result.error.message
+      })
       return NextResponse.json(
-        { error: result.error.message || 'Resend rejected the email' },
+        { error: `${result.error.name || 'Error'}: ${result.error.message}` },
         { status: 502 }
       )
     }
