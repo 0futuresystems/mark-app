@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { z } from 'zod'
-import { env } from '@/lib/env'
 import { ensureAuthed } from '@/lib/ensureAuthed'
 import { limit } from '@/lib/rateLimit'
 
@@ -21,6 +20,9 @@ const Body = z.object({
 
 export async function POST(req: Request) {
   try {
+    // Lazy import to avoid validation during build
+    const { env } = await import('@/lib/env');
+    
     const user = await ensureAuthed();
     if (!(await limit(`email:${user.id}`, 20))) {
       return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 });

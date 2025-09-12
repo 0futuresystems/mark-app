@@ -18,9 +18,23 @@ const client = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(10),
 });
 
+// Lazy validation - only validate when accessed
+let _serverEnv: z.infer<typeof server> | null = null;
+let _clientEnv: z.infer<typeof client> | null = null;
+
 export const env = {
-  server: server.parse(process.env),
-  client: client.parse(process.env),
+  get server() {
+    if (!_serverEnv) {
+      _serverEnv = server.parse(process.env);
+    }
+    return _serverEnv;
+  },
+  get client() {
+    if (!_clientEnv) {
+      _clientEnv = client.parse(process.env);
+    }
+    return _clientEnv;
+  },
 };
 
 // Legacy compatibility functions
