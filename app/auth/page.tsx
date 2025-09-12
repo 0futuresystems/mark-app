@@ -15,14 +15,15 @@ export default function AuthPage() {
   const [step, setStep] = useState<AuthStep>('email')
   const [loading, setLoading] = useState(false)
   const [codeSent, setCodeSent] = useState(false)
+  const [throttled, setThrottled] = useState(false)
   const { user } = useAuth()
   const { showToast } = useToast()
   const router = useRouter()
 
 
-  // Load last used email from localStorage
+  // Load last used email from sessionStorage (more secure than localStorage)
   useEffect(() => {
-    const lastEmail = localStorage.getItem('lot-logger-last-email')
+    const lastEmail = sessionStorage.getItem('lot-logger-last-email')
     if (lastEmail) {
       setEmail(lastEmail)
     }
@@ -53,18 +54,18 @@ export default function AuthPage() {
       })
 
       if (error) {
-        // Check for specific error types
-        if (error.message.includes('User not found') || error.message.includes('Invalid login credentials')) {
-          showToast('Not invited. Ask admin to add your email.', 'error')
-        } else {
-          showToast(`Failed to send code: ${error.message}`, 'error')
-        }
+        // Genericize error messages to prevent enumeration
+        showToast('Invalid code or email. Please try again.', 'error')
       } else {
-        // Store email in localStorage
-        localStorage.setItem('lot-logger-last-email', email)
+        // Store email in sessionStorage (more secure than localStorage)
+        sessionStorage.setItem('lot-logger-last-email', email)
         setCodeSent(true)
         setStep('code')
         showToast('We\'ve sent a 6-digit code to your email.', 'success')
+        
+        // Throttle button for 3 seconds
+        setThrottled(true)
+        setTimeout(() => setThrottled(false), 3000)
       }
     } catch (error) {
       showToast(`Failed to send code: ${error}`, 'error')
@@ -85,7 +86,8 @@ export default function AuthPage() {
       })
 
       if (error) {
-        showToast(`Invalid code: ${error.message}`, 'error')
+        // Genericize error messages to prevent enumeration
+        showToast('Invalid code or email. Please try again.', 'error')
       } else {
         showToast('Signed in', 'success')
         router.push('/')
@@ -153,7 +155,7 @@ export default function AuthPage() {
 
             <button
               type="submit"
-              disabled={loading || !email.trim()}
+              disabled={loading || !email.trim() || throttled}
               className="w-full flex items-center justify-center space-x-2 py-4 px-6 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
             >
               {loading ? (

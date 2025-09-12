@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Resend API key
-    const serverEnv = getServerEnv(['RESEND_API_KEY']);
+    const serverEnv = getServerEnv();
     const resend = new Resend(serverEnv.RESEND_API_KEY);
 
     // Generate CSV content

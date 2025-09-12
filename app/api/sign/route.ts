@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 export async function POST(request: NextRequest) {
   try {
     // Get server environment variables safely (runtime check only)
-    const serverEnv = getServerEnv(['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']);
+    const serverEnv = getServerEnv();
     
     const { key, contentType } = await request.json();
     
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // Stub implementation for now
     console.log(`Would generate presigned URL for: ${key} (${contentType})`);
     console.log('R2 environment variables available:', {
-      accountId: !!serverEnv.R2_ACCOUNT_ID,
+      endpoint: !!serverEnv.R2_ENDPOINT,
       accessKeyId: !!serverEnv.R2_ACCESS_KEY_ID,
       secretAccessKey: !!serverEnv.R2_SECRET_ACCESS_KEY
     });

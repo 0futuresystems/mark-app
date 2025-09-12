@@ -14,9 +14,9 @@ export interface EmailResult {
 
 export function getEmailConfig(): EmailConfig | null {
   try {
-    const env = getServerEnv(['RESEND_API_KEY', 'EMAIL_FROM', 'EMAIL_TO']);
+    const env = getServerEnv();
     
-    if (!env.RESEND_API_KEY || !env.EMAIL_FROM || !env.EMAIL_TO) {
+    if (!env.RESEND_API_KEY || !env.EMAIL_FROM || !env.EMAIL_ALLOWLIST) {
       console.warn('Email configuration incomplete');
       return null;
     }
@@ -24,7 +24,7 @@ export function getEmailConfig(): EmailConfig | null {
     return {
       apiKey: env.RESEND_API_KEY,
       fromEmail: env.EMAIL_FROM,
-      toEmail: env.EMAIL_TO
+      toEmail: env.EMAIL_ALLOWLIST.split(',')[0].trim() // Use first email in allowlist
     };
   } catch (error) {
     console.error('Failed to get email config:', error);

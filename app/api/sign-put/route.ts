@@ -1,51 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { z } from 'zod';
+import { ensureAuthed } from '@/lib/ensureAuthed';
+import { limit } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const signPutSchema = z.object({
-  objectKey: z.string().min(1),
-  contentType: z.string().min(1),
+const Body = z.object({
+  auctionId: z.string().min(1),
+  objectKey: z.string().min(3),
+  contentType: z.string().min(3),
 });
 
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-  },
-  forcePathStyle: true,
-});
-
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    // Validate environment variables
-    if (!process.env.R2_ACCOUNT_ID || !process.env.R2_ACCESS_KEY_ID || !process.env.R2_SECRET_ACCESS_KEY) {
-      return NextResponse.json(
-        { error: 'R2 configuration missing' },
-        { status: 500 }
-      );
+    // Lazy import to avoid validation during build
+    const { env } = await import('@/lib/env');
+    
+    const s3 = new S3Client({
+      region: "auto",
+      endpoint: env.server.R2_ENDPOINT,
+      credentials: {
+        accessKeyId: env.server.R2_ACCESS_KEY_ID,
+        secretAccessKey: env.server.R2_SECRET_ACCESS_KEY,
+      },
+      forcePathStyle: true
+    });
+    
+    const user = await ensureAuthed();
+    if (!(await limit(`presign:${user.id}`, 120))) {
+      return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 });
+    }
+    const { auctionId, objectKey, contentType } = Body.parse(await req.json());
+
+    // Sanity check: ensure prefix belongs to user & auction
+    if (!objectKey.startsWith(`u/${user.id}/a/${auctionId}/`)) {
+      return NextResponse.json({ error: 'bad key scope' }, { status: 400 });
     }
 
-    const body = await request.json();
-    const { objectKey, contentType } = signPutSchema.parse(body);
+    // 1) HEAD preflight
+    try {
+      const head = await s3.send(new HeadObjectCommand({ Bucket: env.server.R2_BUCKET, Key: objectKey }));
+      const etag = head.ETag?.replace(/"/g, '') ?? 'existing';
+      return NextResponse.json({ exists: true, key: objectKey, etag });
+    } catch (e: any) {
+      // Not found (continue), any other error should be surfaced
+      if (e?.$metadata?.httpStatusCode && e.$metadata.httpStatusCode !== 404) {
+        return NextResponse.json({ error: 'HEAD failed' }, { status: e.$metadata.httpStatusCode });
+      }
+    }
 
-    const command = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
+    // 2) Presign guarded PUT (If-None-Match:* prevents accidental overwrite)
+    const cmd = new PutObjectCommand({
+      Bucket: env.server.R2_BUCKET,
       Key: objectKey,
       ContentType: contentType,
+      // @ts-ignore - IfNoneMatch is supported in S3 semantics
+      IfNoneMatch: '*',
+      ACL: 'private'
     });
-
-    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
-
-    return NextResponse.json({
-      url,
-      method: 'PUT' as const,
-    });
+    const url = await getSignedUrl(s3, cmd, { expiresIn: 60 });
+    return NextResponse.json({ exists: false, key: objectKey, url });
   } catch (error) {
     console.error('Error generating presigned PUT URL:', error);
     
@@ -54,6 +71,10 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid request body', details: error.issues },
         { status: 400 }
       );
+    }
+
+    if ((error as any)?.status === 401) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     return NextResponse.json(

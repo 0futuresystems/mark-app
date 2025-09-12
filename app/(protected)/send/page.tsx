@@ -50,6 +50,7 @@ export default function SendPage() {
   // ZIP export states
   const [zipProgress, setZipProgress] = useState<number>(0);
   const [zipDownloadUrl, setZipDownloadUrl] = useState<string>('');
+  const [syncErrors, setSyncErrors] = useState<Array<{ id: string; reason: string }>>([]);
 
   // Load current auction on mount
   useEffect(() => {
@@ -217,7 +218,7 @@ export default function SendPage() {
 
       let successCount = 0;
       let failedCount = 0;
-      const errors: string[] = [];
+      const uploadErrors: string[] = [];
 
       // Step 2: Upload each media item to R2
       for (let i = 0; i < pendingMedia.length; i++) {
@@ -264,7 +265,7 @@ export default function SendPage() {
         } catch (error) {
           failedCount++;
           const errorMsg = `Failed to upload ${media.type} ${media.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          errors.push(errorMsg);
+          uploadErrors.push(errorMsg);
           console.error(errorMsg, error);
         }
       }
@@ -273,7 +274,7 @@ export default function SendPage() {
         success: successCount,
         failed: failedCount,
         skipped: 0,
-        errors
+        errors: uploadErrors
       });
 
       if (failedCount > 0) {
@@ -326,13 +327,17 @@ export default function SendPage() {
       const auctionName = auction?.name || 'Unknown';
 
       setZipProgress(0);
-      const { zipUrl } = await createAndUploadZip({ 
+      setSyncErrors([]);
+      const { zipUrl, errors: zipErrors } = await createAndUploadZip({ 
         auctionId: currentAuctionId, 
         lotMetas: lots, 
         uploadedMedia: uploadedMedia, 
-        csvText: csvContent, 
+        csvText: csvContent,
         onProgress: setZipProgress 
       });
+      
+      // Store any sync errors for display
+      setSyncErrors(zipErrors);
 
       // Step 5: Send email with ZIP link only
       setSyncProgress({
@@ -475,12 +480,12 @@ export default function SendPage() {
       entries.push({ path: `media/${name}`, blob })
     }
 
-    const zipBlob = await buildZipBundle(entries, csvText, onProgress)
+    const { blob: zipBlob, errors } = await buildZipBundle(entries, csvText, onProgress)
     const ts = new Date().toISOString().replace(/[:.]/g,'-')
     const objectKey = `exports/${auctionId}/export-${auctionId}-${ts}.zip`
     await uploadZipToR2(objectKey, zipBlob)
     const zipUrl = await presignZipGet(objectKey, 7*24*3600) // 7 days
-    return { objectKey, zipUrl }
+    return { objectKey, zipUrl, errors }
   }
 
   if (loading) {
@@ -798,6 +803,33 @@ export default function SendPage() {
                 Copy ZIP Link
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Sync Errors Panel */}
+        {syncErrors.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertCircle className="w-5 h-5 text-orange-600" />
+              <h4 className="font-semibold text-orange-900">Sync Errors</h4>
+              <span className="text-orange-700 text-sm">({syncErrors.length} files skipped)</span>
+            </div>
+            <p className="text-orange-700 text-sm mb-3">
+              Some media files could not be included in the ZIP. The export completed successfully with the remaining files.
+            </p>
+            <details className="text-sm">
+              <summary className="cursor-pointer text-orange-800 font-medium hover:text-orange-900">
+                View skipped files
+              </summary>
+              <div className="mt-2 space-y-1">
+                {syncErrors.map((error, index) => (
+                  <div key={index} className="text-orange-700 bg-orange-100 rounded px-2 py-1">
+                    <span className="font-mono text-xs">{error.id}</span>
+                    <span className="text-orange-600 ml-2">• {error.reason}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
           </div>
         )}
 

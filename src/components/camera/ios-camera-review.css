@@ -1,0 +1,60 @@
+.iosCamReview__overlay {
+  position: fixed; 
+  inset: 0; 
+  z-index: 70; 
+  display: flex; 
+  flex-direction: column;
+  background: #000;
+}
+
+.iosCamReview__stage {
+  position: relative; 
+  flex: 1; 
+  overflow: hidden; 
+  touch-action: none; /* we manage gestures */
+  display: grid; 
+  place-items: center;
+}
+
+.iosCamReview__img {
+  max-width: 100%; 
+  max-height: 100%; 
+  will-change: transform;
+  transform-origin: center center; 
+  user-select: none; 
+  -webkit-user-drag: none;
+}
+
+.iosCamReview__topBar, .iosCamReview__bottomBar {
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(0,0,0,.34);
+  color: #fff; 
+  -webkit-backdrop-filter: blur(20px); 
+  backdrop-filter: blur(20px);
+}
+
+.iosCamReview__topBar { 
+  padding-top: calc(env(safe-area-inset-top) + 8px); 
+}
+
+.iosCamReview__bottomBar { 
+  padding-bottom: calc(env(safe-area-inset-bottom) + 8px); 
+  gap: 12px; 
+}
+
+.iosCamReview__btn {
+  display: inline-flex; 
+  align-items: center; 
+  gap: 8px; 
+  border: 0; 
+  background: transparent; 
+  color: #fff;
+  font: 500 17px/1.2 ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", Arial, sans-serif;
+}
+
+.iosCamReview__counter { 
+  opacity: .9; 
+}

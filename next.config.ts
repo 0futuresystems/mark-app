@@ -60,8 +60,29 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react'],
   },
   reactStrictMode: true,
-  // Serve SW with correct headers (Next docs recommendation)
+  // Security headers and SW configuration
   async headers() {
+    const securityHeaders = [
+      { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+      // Adjust connect-src to your endpoints
+      { key: "Content-Security-Policy", value: [
+          "default-src 'self'",
+          "base-uri 'self'",
+          "frame-ancestors 'none'",
+          "img-src 'self' blob: data:",
+          "media-src 'self' blob:",
+          "connect-src 'self' https://*.supabase.co https://*.r2.cloudflarestorage.com",
+          "script-src 'self'",
+          "style-src 'self' 'unsafe-inline'",
+          "object-src 'none'",
+          "form-action 'self'",
+        ].join("; ") },
+    ];
+
     return [
       {
         source: '/sw.js',
@@ -69,6 +90,10 @@ const nextConfig: NextConfig = {
           { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
           { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }
         ]
+      },
+      {
+        source: "/(.*)",
+        headers: securityHeaders
       }
     ]
   }

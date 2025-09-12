@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerEnv } from '@/lib/env';
+import { z } from 'zod';
+import { ensureAuthed } from '@/lib/ensureAuthed';
+import { limit } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 // Interface for the data sent from client
 interface ExportData {
@@ -12,6 +15,7 @@ interface ExportData {
     auctionName: string;
     status: string;
     createdAt: string;
+    ownerId?: string; // Add ownerId for filtering
   }>;
   media: Array<{
     id: string;
@@ -24,15 +28,33 @@ interface ExportData {
   }>;
 }
 
-// Generate signed URL for R2 (stub implementation for now)
-async function generateSignedUrl(r2Key: string): Promise<string> {
-  // TODO: Implement actual R2 signed URL generation
-  // For now, return a placeholder URL
-  return `https://r2.example.com/${r2Key}?signed=true`;
-}
+const Body = z.object({
+  data: z.object({
+    lots: z.array(z.object({
+      id: z.string(),
+      number: z.string(),
+      auctionId: z.string(),
+      auctionName: z.string(),
+      status: z.string(),
+      createdAt: z.string(),
+      ownerId: z.string().optional(),
+    })),
+    media: z.array(z.object({
+      id: z.string(),
+      lotId: z.string(),
+      type: z.string(),
+      index: z.number(),
+      uploaded: z.boolean(),
+      remotePath: z.string().optional(),
+      objectKey: z.string().optional(),
+    })),
+  }),
+  auctionId: z.string().optional(),
+  limit: z.number().max(5000).optional().default(5000), // Max 5k rows
+});
 
 // Convert data to CSV format
-async function generateCSV(data: ExportData): Promise<string> {
+function generateCSV(data: ExportData, userId: string, auctionId?: string): string {
   const headers = [
     'auction_id',
     'auction_name', 
@@ -40,25 +62,37 @@ async function generateCSV(data: ExportData): Promise<string> {
     'lot_status',
     'media_kind',
     'media_r2_key',
-    'media_url_signed'
+    'created_at'
   ];
 
   const rows: string[] = [];
   
-  // Create a map of lots for quick lookup
-  const lotMap = new Map(data.lots.map(lot => [lot.id, lot]));
+  // Filter lots by ownerId and optional auctionId
+  const filteredLots = data.lots.filter(lot => {
+    if (lot.ownerId && lot.ownerId !== userId) return false;
+    if (auctionId && lot.auctionId !== auctionId) return false;
+    return true;
+  });
   
-  // Group media by lot
+  // Create a map of lots for quick lookup
+  const lotMap = new Map(filteredLots.map(lot => [lot.id, lot]));
+  
+  // Group media by lot (only for filtered lots)
   const mediaByLot = new Map<string, typeof data.media>();
   data.media.forEach(media => {
-    if (!mediaByLot.has(media.lotId)) {
-      mediaByLot.set(media.lotId, []);
+    if (lotMap.has(media.lotId)) {
+      if (!mediaByLot.has(media.lotId)) {
+        mediaByLot.set(media.lotId, []);
+      }
+      mediaByLot.get(media.lotId)!.push(media);
     }
-    mediaByLot.get(media.lotId)!.push(media);
   });
 
-  // Generate rows for each lot
-  for (const lot of data.lots) {
+  // Generate rows for each lot (with pagination limit)
+  let rowCount = 0;
+  for (const lot of filteredLots) {
+    if (rowCount >= 5000) break; // Hard limit
+    
     const lotMedia = mediaByLot.get(lot.id) || [];
     
     if (lotMedia.length === 0) {
@@ -70,14 +104,16 @@ async function generateCSV(data: ExportData): Promise<string> {
         lot.status,
         '', // no media kind
         '', // no R2 key
-        ''  // no signed URL
+        lot.createdAt
       ].map(field => `"${field}"`).join(','));
+      rowCount++;
     } else {
       // Lot with media - create a row for each media item
       for (const media of lotMedia) {
+        if (rowCount >= 5000) break; // Hard limit
+        
         // Prefer objectKey over remotePath, fallback to empty string
         const r2Key = (media.objectKey || media.remotePath) || '';
-        const signedUrl = r2Key ? await generateSignedUrl(r2Key) : '';
         
         rows.push([
           lot.auctionId,
@@ -86,41 +122,54 @@ async function generateCSV(data: ExportData): Promise<string> {
           lot.status,
           media.type,
           r2Key,
-          signedUrl
+          lot.createdAt
         ].map(field => `"${field}"`).join(','));
+        rowCount++;
       }
     }
   }
+
+  // Audit log
+  console.log(`CSV Export: userId=${userId}, auctionId=${auctionId || 'all'}, rowCount=${rowCount}`);
 
   return [headers.join(','), ...rows].join('\n');
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const data: ExportData = await request.json();
-    
-    // Validate the data structure
-    if (!data.lots || !data.media || !Array.isArray(data.lots) || !Array.isArray(data.media)) {
-      return NextResponse.json(
-        { error: 'Invalid data format. Expected lots and media arrays.' },
-        { status: 400 }
-      );
+    const user = await ensureAuthed();
+    if (!(await limit(`export:${user.id}`, 10))) {
+      return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429 });
     }
 
-    // Generate CSV content
-    const csvContent = await generateCSV(data);
+    const { data, auctionId, limit: maxRows } = Body.parse(await request.json());
+    
+    // Generate CSV content with user scoping
+    const csvContent = generateCSV(data, user.id, auctionId);
     
     // Return CSV as response
     return new NextResponse(csvContent, {
       status: 200,
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename="lots_export.csv"',
+        'Content-Disposition': `attachment; filename="lots_export${auctionId ? `_${auctionId}` : ''}.csv"`,
       },
     });
 
   } catch (error) {
     console.error('Error generating CSV export:', error);
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: error.issues },
+        { status: 400 }
+      );
+    }
+
+    if ((error as any)?.status === 401) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     return NextResponse.json(
       { error: 'Failed to generate CSV export' },
       { status: 500 }
