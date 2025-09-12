@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, Flashlight, RefreshCcw, Check, X } from 'lucide-react';
 import './camera/ios-camera.css';
 import './camera/ios-camera-review.css';
@@ -12,6 +13,7 @@ interface VideoFrameCallbackElement {
 }
 
 type Props = {
+  isOpen?: boolean;
   onDone: (files: File[]) => void;
   onCancel: () => void;
   jpegQuality?: number;   // 0..1
@@ -19,7 +21,7 @@ type Props = {
 };
 
 export default function MultiShotCamera({
-  onDone, onCancel, jpegQuality = 0.85, maxWidth = 1600,
+  isOpen = true, onDone, onCancel, jpegQuality = 0.85, maxWidth = 1600,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -235,9 +237,17 @@ export default function MultiShotCamera({
     gestureRef.current.dragging = false;
   };
 
+  // Early return if not open
+  if (!isOpen) return null;
+
+  // Add one-time sanity log
+  useEffect(() => { 
+    if (isOpen) console.log('[Camera] mounted'); 
+  }, [isOpen]);
+
   if (error) {
-    return (
-      <div className="iosCam__overlay" role="dialog" aria-label="Camera">
+    const errorOverlay = (
+      <div className="iosCam__overlay" role="dialog" aria-label="Camera" style={{ zIndex: 9999 }}>
         <div className="iosCam__topBar">
           <button className="iosCam__btn iosCam__btn--ghost" onClick={onCancel}><X size={20}/>Cancel</button>
           <div style={{opacity:.9}}>Camera</div>
@@ -248,14 +258,15 @@ export default function MultiShotCamera({
         </div>
       </div>
     );
+    return typeof window !== 'undefined' ? createPortal(errorOverlay, document.body) : errorOverlay;
   }
 
   const last = shots[shots.length - 1];
 
-  return (
+  const overlay = (
     <>
       {mode === 'capture' && (
-        <div className="iosCam__overlay" role="dialog" aria-label="Camera">
+        <div className="iosCam__overlay" role="dialog" aria-label="Camera" style={{ zIndex: 9999 }}>
           <div className="iosCam__topBar">
             <button className="iosCam__btn iosCam__btn--ghost" onClick={onCancel}><X size={20}/>Cancel</button>
             <div style={{opacity:.9}}>Camera</div>
@@ -321,4 +332,6 @@ export default function MultiShotCamera({
       )}
     </>
   );
+
+  return typeof window !== 'undefined' ? createPortal(overlay, document.body) : overlay;
 }
