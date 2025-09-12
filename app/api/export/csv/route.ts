@@ -20,6 +20,7 @@ interface ExportData {
     index: number;
     uploaded: boolean;
     remotePath?: string;
+    objectKey?: string;
   }>;
 }
 
@@ -74,7 +75,8 @@ async function generateCSV(data: ExportData): Promise<string> {
     } else {
       // Lot with media - create a row for each media item
       for (const media of lotMedia) {
-        const r2Key = media.uploaded && media.remotePath ? media.remotePath : '';
+        // Prefer objectKey over remotePath, fallback to empty string
+        const r2Key = (media.objectKey || media.remotePath) || '';
         const signedUrl = r2Key ? await generateSignedUrl(r2Key) : '';
         
         rows.push([
