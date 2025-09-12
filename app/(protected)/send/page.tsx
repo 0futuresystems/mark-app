@@ -13,6 +13,8 @@ import { listPendingMediaByAuction, getMediaBlob } from '../../../src/lib/blobSt
 import { generateObjectKey, presignPut, presignGet, uploadBlobToR2 } from '../../../src/lib/r2';
 import { updateMediaItem } from '../../../src/lib/blobStore';
 import { downloadTextFile, copyToClipboard, buildCsvFromLots } from '../../../src/lib/client-utils';
+import { buildZipBundle } from '../../../src/lib/zip-bundle';
+import { uploadZipToR2, presignZipGet } from '../../../src/lib/export-upload';
 
 export default function SendPage() {
   const router = useRouter();
@@ -44,6 +46,10 @@ export default function SendPage() {
   const [csvText, setCsvText] = useState<string>('');
   const [links, setLinks] = useState<string[]>([]);
   const [showToast, setShowToast] = useState<string | null>(null);
+  
+  // ZIP export states
+  const [zipProgress, setZipProgress] = useState<number>(0);
+  const [zipDownloadUrl, setZipDownloadUrl] = useState<string>('');
 
   // Load current auction on mount
   useEffect(() => {
@@ -183,6 +189,8 @@ export default function SendPage() {
     setLastEmail(null);
     setCsvText('');
     setLinks([]);
+    setZipProgress(0);
+    setZipDownloadUrl('');
 
     try {
       // Step 1: Get pending media
@@ -293,16 +301,33 @@ export default function SendPage() {
       setCsvText(csvContent);
       setLinks(generatedLinks);
 
-      // Step 4: Send email
+      // Step 4: Create and upload ZIP
       setSyncProgress({
         current: pendingMedia.length,
         total: pendingMedia.length,
-        label: 'Sending email with CSV...',
+        label: 'Creating ZIP bundle...',
         errors: []
       });
 
       const auction = await db.auctions.get(currentAuctionId);
       const auctionName = auction?.name || 'Unknown';
+
+      setZipProgress(0);
+      const { zipUrl } = await createAndUploadZip({ 
+        auctionId: currentAuctionId, 
+        lotMetas: lots, 
+        uploadedMedia: pendingMedia.filter(m => m.objectKey), 
+        csvText: csvContent, 
+        onProgress: setZipProgress 
+      });
+
+      // Step 5: Send email with ZIP link only
+      setSyncProgress({
+        current: pendingMedia.length,
+        total: pendingMedia.length,
+        label: 'Sending email with ZIP link...',
+        errors: []
+      });
 
       const emailResponse = await fetch('/api/email', {
         method: 'POST',
@@ -310,11 +335,11 @@ export default function SendPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          subject: `Mark App Export - ${auctionName}`,
-          summary: `Export from ${auctionName} with ${successCount} media items`,
+          subject: `Mark App Export (ZIP) - ${auctionName}`,
+          summary: `Export from ${auctionName} with ${successCount} media items - ZIP download link included`,
           auctionId: currentAuctionId,
-          csv: csvContent,
-          links: generatedLinks,
+          // csv: undefined,      // <-- ensure we do NOT send as attachment
+          links: [zipUrl]        // <-- the single ZIP link
         }),
       });
 
@@ -328,8 +353,9 @@ export default function SendPage() {
         setLastEmail({
           id: emailResult?.id ?? null,
           at: new Date().toISOString(),
-          count: generatedLinks.length
+          count: successCount
         });
+        setZipDownloadUrl(zipUrl); // keep it in UI as a fallback
       }
 
       // Step 5: Mark lots as synced
@@ -416,6 +442,33 @@ export default function SendPage() {
       setSyncError(`Failed to resend email: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
+
+  // ZIP export function
+  async function createAndUploadZip({ auctionId, lotMetas, uploadedMedia, csvText, onProgress }:{
+    auctionId: string,
+    lotMetas: Array<{ id: string; title?: string }>,
+    uploadedMedia: Array<{ id: string; lotId: string; index?: number; filename?: string; mime: string }>,
+    csvText: string,
+    onProgress?: (p:number)=>void
+  }) {
+    // Build list of { path, blob } from local IndexedDB blobs
+    // Keep consistent names: media/<lotId>_<index|id>.<ext>
+    const entries = []
+    for (const m of uploadedMedia) {
+      const blob = await getMediaBlob(m.id)
+      if (!blob) continue
+      const ext = (m.mime?.includes('jpeg') ? 'jpg' : (m.mime?.split('/')[1] || 'bin'))
+      const name = m.filename || `${m.lotId}_${(m.index ?? 0)}.${ext}`
+      entries.push({ path: `media/${name}`, blob })
+    }
+
+    const zipBlob = await buildZipBundle(entries, csvText, onProgress)
+    const ts = new Date().toISOString().replace(/[:.]/g,'-')
+    const objectKey = `exports/${auctionId}/export-${auctionId}-${ts}.zip`
+    await uploadZipToR2(objectKey, zipBlob)
+    const zipUrl = await presignZipGet(objectKey, 7*24*3600) // 7 days
+    return { objectKey, zipUrl }
+  }
 
   if (loading) {
     return (
@@ -618,6 +671,23 @@ export default function SendPage() {
           </div>
         )}
 
+        {/* ZIP Progress Indicator */}
+        {zipProgress > 0 && zipProgress < 100 && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-8">
+            <div className="flex justify-between items-center mb-2">
+              <span className="font-semibold text-purple-900">Creating ZIP Bundle</span>
+              <span className="text-purple-700 font-medium">{zipProgress}%</span>
+            </div>
+            <div className="w-full bg-purple-200 rounded-full h-2 overflow-hidden">
+              <div 
+                className="bg-purple-600 h-full transition-all duration-300 ease-out"
+                style={{ width: `${zipProgress}%` }}
+              />
+            </div>
+            <p className="mt-2 text-sm text-purple-700">Building ZIP with CSV and media files...</p>
+          </div>
+        )}
+
         {/* Main Action Cards */}
         {lots.length === 0 ? (
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center">
@@ -681,6 +751,39 @@ export default function SendPage() {
             </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ZIP Download Panel */}
+        {zipDownloadUrl && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mt-8">
+            <h3 className="font-semibold text-purple-900 mb-4">ZIP Export Ready</h3>
+            <p className="text-purple-700 text-sm mb-4">
+              Your complete export (CSV + all media) is ready for download.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => window.open(zipDownloadUrl, '_blank')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+              >
+                <Download className="w-4 h-4" />
+                Download ZIP Now
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await copyToClipboard(zipDownloadUrl);
+                    showToastMessage('ZIP link copied to clipboard');
+                  } catch (error) {
+                    showToastMessage('Failed to copy ZIP link');
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+              >
+                <Copy className="w-4 h-4" />
+                Copy ZIP Link
+              </button>
             </div>
           </div>
         )}
