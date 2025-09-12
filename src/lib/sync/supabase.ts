@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+import { getSupabaseClient } from '../supabaseClient';
 import { db } from '../../db';
 import { Lot, MediaItem } from '../../types';
 
@@ -37,6 +37,7 @@ export async function upsertLotToSupabase(lot: Lot): Promise<void> {
     synced_at: lot.syncedAt
   };
 
+  const supabase = getSupabaseClient() as any;
   const { error } = await supabase
     .from('lots')
     .upsert(supabaseLot, {
@@ -67,6 +68,7 @@ export async function upsertMediaToSupabase(media: MediaItem): Promise<void> {
     created_at: media.createdAt.toISOString()
   };
 
+  const supabase = getSupabaseClient() as any;
   const { error } = await supabase
     .from('media')
     .upsert(supabaseMedia, {
@@ -126,6 +128,7 @@ export async function markLotsAsSynced(lotIds: string[]): Promise<void> {
   await db.lots.where('id').anyOf(lotIds).modify({ syncedAt: timestamp });
   
   // Update Supabase
+  const supabase = getSupabaseClient() as any;
   const { error } = await supabase
     .from('lots')
     .update({ synced_at: timestamp })
