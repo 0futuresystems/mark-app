@@ -62,23 +62,28 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Security headers and SW configuration
   async headers() {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const scriptSrc = isDev
+      ? "'self' 'unsafe-inline' 'unsafe-eval'"
+      : "'self' 'unsafe-inline'";
+
     const securityHeaders = [
       { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
       { key: "X-Frame-Options", value: "DENY" },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "no-referrer" },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-      // Adjust connect-src to your endpoints
       { key: "Content-Security-Policy", value: [
           "default-src 'self'",
-          "base-uri 'self'",
-          "frame-ancestors 'none'",
+          `script-src ${scriptSrc}`,
+          "style-src 'self' 'unsafe-inline'",
           "img-src 'self' blob: data:",
           "media-src 'self' blob:",
           "connect-src 'self' https://*.supabase.co https://*.r2.cloudflarestorage.com",
-          "script-src 'self'",
-          "style-src 'self' 'unsafe-inline'",
+          "font-src 'self' data:",
           "object-src 'none'",
+          "frame-ancestors 'none'",
+          "base-uri 'self'",
           "form-action 'self'",
         ].join("; ") },
     ];

@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient'
+import { getSupabaseClient } from './supabaseClient'
 import { Auction, Lot, MediaItem } from '../types'
 
 // Retry configuration
@@ -127,6 +127,7 @@ async function withRetry<T>(
 // Upsert auction to Supabase
 export async function upsertAuction(auction: { id: string; name: string }): Promise<void> {
   const operation = async () => {
+    const supabase = getSupabaseClient() as any;
     const { error } = await supabase
       .from('auctions')
       .upsert({
@@ -162,6 +163,7 @@ export async function upsertLot(lot: {
   status: 'draft' | 'complete' | 'sent' 
 }): Promise<void> {
   const operation = async () => {
+    const supabase = getSupabaseClient() as any;
     const { error } = await supabase
       .from('lots')
       .upsert({
@@ -248,6 +250,7 @@ export async function upsertMedia(media: {
   indexInLot: number;
 }): Promise<void> {
   const operation = async () => {
+    const supabase = getSupabaseClient() as any;
     const { error } = await supabase
       .from('media')
       .upsert({

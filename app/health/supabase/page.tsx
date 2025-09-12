@@ -22,11 +22,23 @@ export default function SupabaseHealthPage() {
     lots: false
   })
 
-  // Check environment variables safely
-  const publicEnv = getPublicEnv()
-  const hasSupabaseUrl = !!publicEnv.NEXT_PUBLIC_SUPABASE_URL
-  const hasSupabaseKey = !!publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const isDev = process.env.NODE_ENV !== 'production'
+  
+  // Check environment variables safely
+  const [envStatus, setEnvStatus] = useState({ hasUrl: false, hasKey: false })
+  
+  useEffect(() => {
+    try {
+      const publicEnv = getPublicEnv()
+      setEnvStatus({
+        hasUrl: !!publicEnv.NEXT_PUBLIC_SUPABASE_URL,
+        hasKey: !!publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      })
+    } catch (error) {
+      console.error('Failed to get public env:', error)
+      setEnvStatus({ hasUrl: false, hasKey: false })
+    }
+  }, [])
 
   // Mask user ID for display
   const maskedUserId = user?.id ? `${user.id.slice(0, 8)}...${user.id.slice(-4)}` : null
@@ -128,29 +140,29 @@ export default function SupabaseHealthPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center space-x-3">
-              {hasSupabaseUrl ? (
+              {envStatus.hasUrl ? (
                 <CheckCircle className="w-5 h-5 text-green-500" />
               ) : (
                 <XCircle className="w-5 h-5 text-red-500" />
               )}
               <span className="text-white">NEXT_PUBLIC_SUPABASE_URL</span>
               <span className={`text-sm px-2 py-1 rounded ${
-                hasSupabaseUrl ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                envStatus.hasUrl ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
               }`}>
-                {hasSupabaseUrl ? 'Present' : 'Missing'}
+                {envStatus.hasUrl ? 'Present' : 'Missing'}
               </span>
             </div>
             <div className="flex items-center space-x-3">
-              {hasSupabaseKey ? (
+              {envStatus.hasKey ? (
                 <CheckCircle className="w-5 h-5 text-green-500" />
               ) : (
                 <XCircle className="w-5 h-5 text-red-500" />
               )}
               <span className="text-white">NEXT_PUBLIC_SUPABASE_ANON_KEY</span>
               <span className={`text-sm px-2 py-1 rounded ${
-                hasSupabaseKey ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                envStatus.hasKey ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
               }`}>
-                {hasSupabaseKey ? 'Present' : 'Missing'}
+                {envStatus.hasKey ? 'Present' : 'Missing'}
               </span>
             </div>
           </div>
