@@ -364,7 +364,7 @@ export default function SendPage() {
 
       const emailResult = await emailResponse.json();
       
-      if (!emailResponse.ok || emailResult?.ok !== true) {
+      if (!emailResponse.ok || emailResult?.error) {
         setSyncError(`Email failed: ${emailResult?.error || emailResponse.statusText}`);
         throw new Error(`Email failed: ${emailResult?.error || emailResponse.statusText}`);
       } else {
@@ -446,7 +446,7 @@ export default function SendPage() {
 
       const emailResult = await emailResponse.json();
       
-      if (!emailResponse.ok || emailResult?.ok !== true) {
+      if (!emailResponse.ok || emailResult?.error) {
         setSyncError(`Email (links-only) failed: ${emailResult?.error || emailResponse.statusText}`);
       } else {
         setSyncError(null);
@@ -645,12 +645,12 @@ export default function SendPage() {
           </div>
         )}
 
-        {syncSuccess && (
+        {syncSuccess && lastEmail && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-green-800 font-medium">All caught up ✅</span>
+                <span className="text-green-800 font-medium">Email sent successfully ✅</span>
               </div>
               <button
                 onClick={() => setSyncSuccess(false)}
@@ -659,9 +659,19 @@ export default function SendPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-green-700 text-sm mt-2">
-              We&apos;ve emailed your export to kvvisakh@gmail.com
-            </p>
+            <div className="text-green-700 text-sm mt-2">
+              <p>We&apos;ve emailed your export to kvvisakh@gmail.com</p>
+              {lastEmail.count > 0 && (
+                <p className="mt-1">
+                  📎 {lastEmail.count} media {lastEmail.count === 1 ? 'item' : 'items'} included
+                </p>
+              )}
+              {lastEmail.id && (
+                <p className="mt-1 text-xs opacity-75">
+                  Email ID: {lastEmail.id}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
