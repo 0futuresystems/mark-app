@@ -30,7 +30,25 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
       throw new Error(`Media item not found for ID: ${mediaId}`);
     }
   }
-  return blobRecord.data;
+  
+  // Ensure we return a proper Blob object with arrayBuffer() method
+  const data = blobRecord.data as any;
+  if (data instanceof Blob) {
+    return data;
+  } else if (data instanceof ArrayBuffer) {
+    return new Blob([data]);
+  } else if (typeof data === 'string') {
+    // Handle base64 strings
+    const binaryString = atob(data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new Blob([bytes]);
+  } else {
+    console.error(`Unexpected blob data type for ID: ${mediaId}`, typeof data, data);
+    throw new Error(`Invalid blob data type for ID: ${mediaId}`);
+  }
 }
 
 export async function getMediaBlob(input: AnyMedia): Promise<Blob> {

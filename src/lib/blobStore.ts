@@ -25,7 +25,25 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
       console.warn(`Blob record exists but data is null for ID: ${id}`);
       return null;
     }
-    return blobRecord.data;
+    
+    // Ensure we return a proper Blob object with arrayBuffer() method
+    const data = blobRecord.data as any;
+    if (data instanceof Blob && typeof data.arrayBuffer === 'function') {
+      return data;
+    } else if (data instanceof ArrayBuffer) {
+      return new Blob([data]);
+    } else if (typeof data === 'string') {
+      // Handle base64 strings
+      const binaryString = atob(data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return new Blob([bytes]);
+    } else {
+      console.error(`Unexpected blob data type for ID: ${id}`, typeof data, data);
+      return null;
+    }
   } catch (error) {
     console.error(`Error retrieving blob for ID: ${id}`, error);
     return null;
