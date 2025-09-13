@@ -30,7 +30,12 @@ export async function POST(request: NextRequest) {
     if (missing.length) {
       return Response.json({ error: `Missing env: ${missing.join(', ')}` }, { status: 500 });
     }
-    const from = process.env.RESEND_FROM || 'Mark App <onboarding@resend.dev>';
+    
+    // Use verified Resend domain to avoid verification issues
+    const from = process.env.RESEND_FROM || 'onboarding@resend.dev';
+    
+    // Log the from address for debugging
+    console.log('Email from address:', from);
     
     const body = await request.json();
     const { subject, summary, userId, auctionId, csv, links, attachments = [] } = emailSchema.parse(body);

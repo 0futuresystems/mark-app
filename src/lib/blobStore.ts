@@ -15,8 +15,21 @@ export async function saveMediaBlob(id: string, blob: Blob): Promise<void> {
  * Get a media blob from IndexedDB
  */
 export async function getMediaBlob(id: string): Promise<Blob | null> {
-  const blobRecord = await db.blobs.get(id);
-  return blobRecord?.data || null;
+  try {
+    const blobRecord = await db.blobs.get(id);
+    if (!blobRecord) {
+      console.warn(`No blob record found for ID: ${id}`);
+      return null;
+    }
+    if (!blobRecord.data) {
+      console.warn(`Blob record exists but data is null for ID: ${id}`);
+      return null;
+    }
+    return blobRecord.data;
+  } catch (error) {
+    console.error(`Error retrieving blob for ID: ${id}`, error);
+    return null;
+  }
 }
 
 /**
@@ -139,4 +152,36 @@ export async function cleanupOrphanedBlobs(): Promise<number> {
   }
   
   return orphanedBlobs.length;
+}
+
+/**
+ * Test database connectivity and basic operations
+ */
+export async function testDatabaseConnectivity(): Promise<{
+  success: boolean;
+  error?: string;
+  mediaCount: number;
+  blobCount: number;
+}> {
+  try {
+    // Test basic database access
+    const mediaCount = await db.media.count();
+    const blobCount = await db.blobs.count();
+    
+    console.log(`Database connectivity test: ${mediaCount} media items, ${blobCount} blobs`);
+    
+    return {
+      success: true,
+      mediaCount,
+      blobCount
+    };
+  } catch (error) {
+    console.error('Database connectivity test failed:', error);
+    return {
+      success: false,
+      error: String(error),
+      mediaCount: 0,
+      blobCount: 0
+    };
+  }
 }

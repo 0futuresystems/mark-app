@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { getMediaBlob, diagnoseMediaBlobs } from './blobStore';
+import { getMediaBlob, diagnoseMediaBlobs, testDatabaseConnectivity } from './blobStore';
 import { upsertMedia } from './supabaseSync';
 
 export interface UploadProgress {
@@ -93,13 +93,16 @@ async function uploadSingleMedia(media: any, onProgress?: (info: UploadProgress)
   const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT);
   
   try {
+    console.log(`Attempting to get blob for media ${media.id}`);
     const blob = await getMediaBlob(media.id);
     if (!blob) {
       console.warn(`No blob found for media ${media.id}`);
       // Run diagnostics to understand the issue
+      await testDatabaseConnectivity();
       await diagnoseMediaBlobs();
       return false;
     }
+    console.log(`Successfully retrieved blob for media ${media.id}, size: ${blob.size} bytes`);
 
     // Generate unique key for this upload
     const lot = await db.lots.get(media.lotId);
