@@ -81,6 +81,7 @@ const nextConfig: NextConfig = {
           "media-src 'self' blob:",
           "connect-src 'self' https://*.supabase.co https://*.r2.cloudflarestorage.com",
           "font-src 'self' data:",
+          "worker-src 'self' blob: data:",
           "object-src 'none'",
           "frame-ancestors 'none'",
           "base-uri 'self'",
