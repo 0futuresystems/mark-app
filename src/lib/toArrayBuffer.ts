@@ -1,42 +1,27 @@
 // src/lib/toArrayBuffer.ts
+import { getMediaBlob } from './media/getMediaBlob';
+
 export async function toArrayBuffer(input: unknown): Promise<ArrayBuffer> {
-  if (!input) throw new Error("empty media");
+  // Keep old fast-paths, but normalize everything else to Blob
+  if (!input) throw new Error('empty media');
 
-  // 1) Blob/File
-  if (typeof Blob !== "undefined" && input instanceof Blob) {
-    return await input.arrayBuffer();
-  }
+  // If it already is ArrayBuffer
+  if (input instanceof ArrayBuffer) return input;
 
-  // 2) Response (e.g., fetch(blobUrl))
-  if (typeof Response !== "undefined" && input instanceof Response) {
-    if (!input.ok) throw new Error(`http ${input.status}`);
-    return await input.arrayBuffer();
-  }
-
-  // 3) Strings: blob:, http(s):, data:
-  if (typeof input === "string") {
-    // blob: or http(s):
-    if (input.startsWith("blob:") || input.startsWith("http")) {
-      const r = await fetch(input);
-      if (!r.ok) throw new Error(`fetch ${r.status}`);
-      return await r.arrayBuffer();
+  // If it is a Blob/File or a supported shape, normalize to Blob then .arrayBuffer()
+  try {
+    const blob = await getMediaBlob(input as any);
+    return await blob.arrayBuffer();
+  } catch (e) {
+    // Helpful diagnostics in dev only
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('toArrayBuffer unsupported shape:', {
+        type: typeof input,
+        ctor: (input as any)?.constructor?.name,
+        keys: typeof input === 'object' && input ? Object.keys(input as any) : undefined,
+        err: String(e),
+      });
     }
-    // data:URL (base64)
-    if (input.startsWith("data:")) {
-      const base64 = input.split(",")[1] ?? "";
-      const bin = atob(base64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return bytes.buffer;
-    }
+    throw new Error('unsupported media object (pass blob/file/url/dataUrl)');
   }
-
-  // 4) Unknown shapes (e.g., {buffer:..., type:...})
-  if (typeof input === "object" && input !== null) {
-    // Common mistake: something like { dataUrl: "..." }
-    // Caller should pass the inner field; surface a helpful message.
-    throw new Error("unsupported media object (pass blob/file/url/dataUrl)");
-  }
-
-  throw new Error(`unsupported media: ${Object.prototype.toString.call(input)}`);
 }

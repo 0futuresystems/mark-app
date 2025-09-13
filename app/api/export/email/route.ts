@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { getServerEnv } from '@/lib/env';
+import { z } from 'zod';
+
+const emailSchema = z.object({
+  to: z.string().email(),
+  subject: z.string().min(1),
+  html: z.string().optional(),
+  text: z.string().optional(),
+  attachments: z.array(z.object({
+    filename: z.string(),
+    content: z.union([z.string(), z.instanceof(ArrayBuffer), z.any()])
+  })).optional(),
+});
+
+const resend = new Resend(process.env.RESEND_API_KEY!);
+
+async function asBase64(c: any) {
+  if (typeof c === 'string') return c.startsWith('data:') ? c.split(',')[1] : c; // if already base64
+  if (c instanceof Blob) return Buffer.from(await c.arrayBuffer()).toString('base64');
+  if (c instanceof ArrayBuffer) return Buffer.from(c).toString('base64');
+  throw new Error('attachment content must be string/base64, Blob or ArrayBuffer');
+}
 
 export const runtime = 'nodejs';
 
@@ -183,86 +203,44 @@ function generateEmailHTML(data: EmailExportData, csvUrl: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const data: EmailExportData = await request.json();
+    const missing = ['RESEND_API_KEY'].filter(k => !process.env[k]);
+    if (missing.length) {
+      return Response.json({ error: `Missing env: ${missing.join(', ')}` }, { status: 500 });
+    }
+    const from = process.env.RESEND_FROM || 'Mark App <onboarding@resend.dev>';
     
-    // Validate the data structure
-    if (!data.lots || !data.media || !data.email || !Array.isArray(data.lots) || !Array.isArray(data.media)) {
-      return NextResponse.json(
-        { error: 'Invalid data format. Expected lots, media arrays, and email address.' },
-        { status: 400 }
-      );
+    const body = await request.json();
+    const { to, subject, html, text, attachments = [] } = emailSchema.parse(body);
+
+    // normalize attachments -> base64 and size-check
+    const normalized = [];
+    let totalBytes = 0;
+    
+    // Add other attachments
+    for (const a of attachments) {
+      const b64 = await asBase64(a.content);
+      totalBytes += Math.ceil((b64.length * 3) / 4); // approx raw size
+      normalized.push({ filename: a.filename, content: b64 });
+    }
+    
+    const estWithOverhead = Math.round(totalBytes * 1.33);
+    if (estWithOverhead > 30 * 1024 * 1024) {
+      return Response.json({ error: 'Attachments too large', code: 'ATTACHMENT_TOO_LARGE', maxMb: 30 }, { status: 413 });
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email)) {
-      return NextResponse.json(
-        { error: 'Invalid email address format.' },
-        { status: 400 }
-      );
-    }
-
-    // Get Resend API key
-    const serverEnv = getServerEnv();
-    const resend = new Resend(serverEnv.RESEND_API_KEY);
-
-    // Generate CSV content
-    const csvContent = await generateCSV(data);
-    
-    // For now, we'll create a data URL for the CSV since we don't have R2 upload implemented
-    // In a real implementation, you'd upload the CSV to R2 and get a signed URL
-    const csvDataUrl = `data:text/csv;base64,${Buffer.from(csvContent).toString('base64')}`;
-    
-    // Generate HTML email content
-    const emailHTML = generateEmailHTML(data, csvDataUrl);
-    
-    // Send email
-    const emailResult = await resend.emails.send({
-      from: 'Lot Logger <noreply@lotlogger.app>', // You'll need to configure this domain
-      to: [data.email],
-      subject: `Lot Export Ready - ${data.lots[0]?.auctionName || 'Auction'}`,
-      html: emailHTML,
-      attachments: [
-        {
-          filename: `lots_export_${new Date().toISOString().split('T')[0]}.csv`,
-          content: Buffer.from(csvContent),
-          contentType: 'text/csv'
-        }
-      ]
+    const { data, error } = await resend.emails.send({
+      from, 
+      to, 
+      subject, 
+      html: html || undefined, 
+      text: text || 'No content',
+      attachments: normalized.map(n => ({ filename: n.filename, content: n.content })),
     });
-
-    if (emailResult.error) {
-      console.error('Resend error:', emailResult.error);
-      return NextResponse.json(
-        { error: 'Failed to send email', details: emailResult.error },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      messageId: emailResult.data?.id,
-      message: 'Email sent successfully'
-    });
-
-  } catch (error) {
-    console.error('Error sending email export:', error);
     
-    // Handle missing API key gracefully
-    if (error instanceof Error && error.message.includes('Missing required environment variables')) {
-      return NextResponse.json(
-        { 
-          success: true, 
-          message: 'Email service not configured (RESEND_API_KEY missing)',
-          mock: true 
-        },
-        { status: 200 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Failed to send email export' },
-      { status: 500 }
-    );
+    if (error) throw error;
+    return Response.json({ id: data?.id ?? null });
+  } catch (e: any) {
+    console.error('email send failed:', e);
+    return Response.json({ error: String(e?.message ?? e) }, { status: 500 });
   }
 }

@@ -1,8 +1,8 @@
 'use client'
 import { ZipWriter, BlobWriter, BlobReader } from '@zip.js/zip.js'
-import { toArrayBuffer } from './toArrayBuffer'
+import { getMediaBlob } from './media/getMediaBlob'
 
-export type ZipEntry = { path: string; blob: Blob }
+export type ZipEntry = { path: string; media: any }
 
 export type ZipResult = {
   blob: Blob;
@@ -41,14 +41,13 @@ export async function buildZipBundle(entries: ZipEntry[], csvText: string, onPro
   // Add media with fault tolerance and deduplication
   for (const e of entries) {
     try {
-      // Normalize the blob to ArrayBuffer using our helper
-      const arrayBuffer = await toArrayBuffer(e.blob)
-      const normalizedBlob = new Blob([arrayBuffer], { type: e.blob.type || 'application/octet-stream' })
+      // Resolve to Blob via getMediaBlob
+      const blob = await getMediaBlob(e.media)
       
       // Generate unique path to avoid duplicates
       const uniqueZipPath = uniquePath(e.path, used)
       
-      await writer.add(uniqueZipPath, new BlobReader(normalizedBlob), {
+      await writer.add(uniqueZipPath, new BlobReader(blob), {
         onprogress: async (bytes, total) => {
           // best-effort progress per file; convert to coarse global
           if (typeof onProgress === 'function' && total) {
