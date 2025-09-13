@@ -64,9 +64,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (links && links.length > 0) {
-      emailContent += '\nMedia Links:\n';
+      emailContent += '\n📎 Download Links:\n';
       links.forEach((link, index) => {
-        emailContent += `${index + 1}. ${link}\n`;
+        if (index === 0) {
+          emailContent += `\n🔗 ZIP Download (CSV + Media): ${link}\n`;
+          emailContent += `\nClick the link above to download your complete export package.\n`;
+          emailContent += `The ZIP file contains:\n`;
+          emailContent += `• export.csv - All lot data with media links\n`;
+          emailContent += `• media/ folder - All captured photos and videos\n\n`;
+        } else {
+          emailContent += `${index + 1}. ${link}\n`;
+        }
       });
     }
 
