@@ -15,7 +15,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate environment variables
+    // Validate environment variables (deployment test)
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json(
         { error: 'Resend API key not configured' },
