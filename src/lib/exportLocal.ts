@@ -1,8 +1,8 @@
 import JSZip from 'jszip';
 import { db } from '../db';
 import { Lot, MediaItem } from '../types';
-import { getMediaBlob } from './blobStore';
-import { toArrayBuffer } from './toArrayBuffer';
+import { getMediaBlob } from './media/getMediaBlob';
+import { buildZipBundle } from './zip-bundle';
 
 // Helper function to generate unique paths in ZIP
 function uniquePath(basePath: string, used: Set<string>) {
@@ -107,12 +107,9 @@ export async function createExportZip(
   onProgress?: (progress: ExportProgress) => void
 ): Promise<File> {
   const { lots, media, auctionName } = data;
-  const zip = new JSZip();
   
   let currentStep = 0;
-  const totalSteps = 3;
-  const errors: Array<{ id: string; reason: string }> = [];
-  const used = new Set<string>();
+  const totalSteps = 2;
 
   // Step 1: Generate CSV
   onProgress?.({
@@ -122,84 +119,51 @@ export async function createExportZip(
   });
 
   const csvContent = generateCSVFromData(data);
-  zip.file('lots_data.csv', csvContent);
-  used.add('lots_data.csv');
 
-  // Step 2: Add media files
+  // Step 2: Prepare media entries for zip bundle
   onProgress?.({
     current: ++currentStep,
     total: totalSteps,
-    label: 'Adding media files...'
+    label: 'Preparing media files...'
   });
 
-  const mediaFolder = zip.folder('media');
-  let processedMedia = 0;
-  const totalMedia = media.length;
-
-  for (const mediaItem of media) {
-    try {
-      const blob = await getMediaBlob(mediaItem.id);
-      if (blob) {
-        // Normalize the blob using our fault-tolerant helper
-        const arrayBuffer = await toArrayBuffer(blob);
-        const normalizedBlob = new Blob([arrayBuffer], { type: blob.type || 'application/octet-stream' });
-        
-        // Determine file extension based on media type and blob type
-        let extension = '';
-        if (mediaItem.type === 'photo') {
-          extension = blob.type.includes('jpeg') || blob.type.includes('jpg') ? '.jpg' : 
-                     blob.type.includes('png') ? '.png' : '.jpg';
-        } else if (mediaItem.type === 'mainVoice' || mediaItem.type === 'dimensionVoice' || mediaItem.type === 'keywordVoice') {
-          extension = blob.type.includes('webm') ? '.webm' : 
-                     blob.type.includes('mp3') ? '.mp3' : '.webm';
-        }
-
-        // Create predictable filename
-        const lot = lots.find(l => l.id === mediaItem.lotId);
-        const baseFileName = `${lot?.number || 'unknown'}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}${extension}`;
-        
-        // Generate unique path to avoid duplicates
-        const uniqueFileName = uniquePath(baseFileName, used);
-        
-        mediaFolder?.file(uniqueFileName, normalizedBlob);
-      } else {
-        console.warn(`Missing media file for ${mediaItem.id}`);
-        errors.push({ id: mediaItem.id, reason: 'Media file not found in storage' });
-      }
-    } catch (error: any) {
-      console.error(`Error processing media ${mediaItem.id}:`, error);
-      errors.push({ 
-        id: mediaItem.id, 
-        reason: error?.message ?? String(error) 
-      });
+  const entries = media.map(mediaItem => {
+    // Determine file extension based on media type
+    let extension = '';
+    if (mediaItem.type === 'photo') {
+      extension = '.jpg';
+    } else if (mediaItem.type === 'mainVoice' || mediaItem.type === 'dimensionVoice' || mediaItem.type === 'keywordVoice') {
+      extension = '.webm';
     }
 
-    processedMedia++;
+    // Create predictable filename
+    const lot = lots.find(l => l.id === mediaItem.lotId);
+    const fileName = `${lot?.number || 'unknown'}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}${extension}`;
+    
+    return {
+      path: `media/${fileName}`,
+      media: mediaItem // Pass the media item directly to getMediaBlob
+    };
+  });
+
+  // Use the new zip bundle function
+  const zipResult = await buildZipBundle(entries, csvContent, (progress) => {
     onProgress?.({
       current: currentStep,
       total: totalSteps,
-      label: `Adding media files... (${processedMedia}/${totalMedia})`
+      label: `Creating ZIP file... (${progress}%)`
     });
-  }
-
-  // Step 3: Generate ZIP
-  onProgress?.({
-    current: ++currentStep,
-    total: totalSteps,
-    label: 'Creating ZIP file...'
   });
-
-  const zipBlob = await zip.generateAsync({ type: 'blob' });
   
   const today = new Date().toISOString().split('T')[0];
   const fileName = `mark-export_${auctionName.replace(/[^a-zA-Z0-9]/g, '_')}_${today}.zip`;
   
-  // Log any errors for debugging (Share Now doesn't show them in UI)
-  if (errors.length > 0) {
-    console.warn(`Share Now: ${errors.length} media files skipped:`, errors);
+  // Log any errors for debugging
+  if (zipResult.errors.length > 0) {
+    console.warn(`Share Now: ${zipResult.errors.length} media files skipped:`, zipResult.errors);
   }
   
-  return new File([zipBlob], fileName, { type: 'application/zip' });
+  return new File([zipResult.blob], fileName, { type: 'application/zip' });
 }
 
 export async function shareZipFile(file: File): Promise<boolean> {

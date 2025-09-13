@@ -9,7 +9,8 @@ import { ArrowLeft, Share2, Cloud, CheckCircle, AlertCircle, X, Download, Copy, 
 
 // Import new utilities
 import { getExportableData, createExportZip, shareZipFile, markLotsAsShared } from '../../../src/lib/exportLocal';
-import { listPendingMediaByAuction, getMediaBlob } from '../../../src/lib/blobStore';
+import { listPendingMediaByAuction } from '../../../src/lib/blobStore';
+import { getMediaBlob } from '../../../src/lib/media/getMediaBlob';
 import { generateObjectKey, presignPut, presignGet, presignGetUrl, uploadBlobToR2 } from '../../../src/lib/r2';
 import { updateMediaItem } from '../../../src/lib/blobStore';
 import { downloadTextFile, copyToClipboard, buildCsvFromLots } from '../../../src/lib/client-utils';
@@ -469,15 +470,13 @@ export default function SendPage() {
     csvText: string,
     onProgress?: (p:number)=>void
   }) {
-    // Build list of { path, blob } from local IndexedDB blobs
+    // Build list of { path, media } from local IndexedDB media items
     // Keep consistent names: media/<lotId>_<index|id>.<ext>
     const entries = []
     for (const m of uploadedMedia) {
-      const blob = await getMediaBlob(m.id)
-      if (!blob) continue
       const ext = (m.mime?.includes('jpeg') ? 'jpg' : (m.mime?.split('/')[1] || 'bin'))
       const name = m.filename || `${m.lotId}_${(m.index ?? 0)}.${ext}`
-      entries.push({ path: `media/${name}`, blob })
+      entries.push({ path: `media/${name}`, media: m })
     }
 
     const { blob: zipBlob, errors } = await buildZipBundle(entries, csvText, onProgress)

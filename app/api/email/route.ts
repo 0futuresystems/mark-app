@@ -9,32 +9,40 @@ const emailSchema = z.object({
   auctionId: z.string().optional(),
   csv: z.string().optional(),
   links: z.array(z.string()).optional(),
+  attachments: z.array(z.object({
+    filename: z.string(),
+    content: z.union([z.string(), z.instanceof(ArrayBuffer), z.any()])
+  })).optional(),
 });
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY!);
+
+async function asBase64(c: any) {
+  if (typeof c === 'string') return c.startsWith('data:') ? c.split(',')[1] : c; // if already base64
+  if (c instanceof Blob) return Buffer.from(await c.arrayBuffer()).toString('base64');
+  if (c instanceof ArrayBuffer) return Buffer.from(c).toString('base64');
+  throw new Error('attachment content must be string/base64, Blob or ArrayBuffer');
+}
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate environment variables (deployment test)
-    if (!process.env.RESEND_API_KEY) {
-      return NextResponse.json(
-        { error: 'Resend API key not configured' },
-        { status: 500 }
-      );
+    const missing = ['RESEND_API_KEY'].filter(k => !process.env[k]);
+    if (missing.length) {
+      return Response.json({ error: `Missing env: ${missing.join(', ')}` }, { status: 500 });
     }
+    const from = process.env.RESEND_FROM || 'Mark App <onboarding@resend.dev>';
+    
+    const body = await request.json();
+    const { subject, summary, userId, auctionId, csv, links, attachments = [] } = emailSchema.parse(body);
 
-    if (!process.env.SYNC_TO_EMAIL) {
+    // Server-enforced recipient - always send to configured email
+    const toEmail = process.env.SYNC_TO_EMAIL;
+    if (!toEmail) {
       return NextResponse.json(
         { error: 'Sync email not configured' },
         { status: 500 }
       );
     }
-
-    const body = await request.json();
-    const { subject, summary, userId, auctionId, csv, links } = emailSchema.parse(body);
-
-    // Server-enforced recipient - always send to kvvisakh@gmail.com
-    const toEmail = process.env.SYNC_TO_EMAIL;
 
     let emailContent = '';
     
@@ -61,61 +69,40 @@ export async function POST(request: NextRequest) {
       emailContent = 'Mark App Export - No additional details provided.';
     }
 
-    const emailData: {
-      from: string;
-      to: string[];
-      subject: string;
-      text: string;
-      attachments?: Array<{
-        filename: string;
-        content: string;
-        contentType: string;
-      }>;
-    } = {
-      from: 'Mark App <no-reply@markapp.com>', // Update with your verified domain
-      to: [toEmail],
-      subject,
-      text: emailContent,
-    };
-
-    // Attach CSV if provided
-    if (csv) {
-      emailData.attachments = [
-        {
-          filename: 'export.csv',
-          content: csv,
-          contentType: 'text/csv',
-        },
-      ];
-    }
-
-    const result = await resend.emails.send(emailData);
-
-    if (result.error) {
-      console.error('Resend error:', result.error);
-      return NextResponse.json(
-        { error: 'Failed to send email', details: result.error },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      messageId: result.data?.id,
-    });
-  } catch (error) {
-    console.error('Error sending email:', error);
+    // normalize attachments -> base64 and size-check
+    const normalized = [];
+    let totalBytes = 0;
     
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request body', details: error.issues },
-        { status: 400 }
-      );
+    // Add CSV as attachment if provided
+    if (csv) {
+      totalBytes += Math.ceil((csv.length * 3) / 4); // approx raw size
+      normalized.push({ filename: 'export.csv', content: csv });
+    }
+    
+    // Add other attachments
+    for (const a of attachments) {
+      const b64 = await asBase64(a.content);
+      totalBytes += Math.ceil((b64.length * 3) / 4); // approx raw size
+      normalized.push({ filename: a.filename, content: b64 });
+    }
+    
+    const estWithOverhead = Math.round(totalBytes * 1.33);
+    if (estWithOverhead > 30 * 1024 * 1024) {
+      return Response.json({ error: 'Attachments too large', code: 'ATTACHMENT_TOO_LARGE', maxMb: 30 }, { status: 413 });
     }
 
-    return NextResponse.json(
-      { error: 'Failed to send email' },
-      { status: 500 }
-    );
+    const { data, error } = await resend.emails.send({
+      from, 
+      to: [toEmail], 
+      subject, 
+      text: emailContent,
+      attachments: normalized.map(n => ({ filename: n.filename, content: n.content })),
+    });
+    
+    if (error) throw error;
+    return Response.json({ id: data?.id ?? null });
+  } catch (e: any) {
+    console.error('email send failed:', e);
+    return Response.json({ error: String(e?.message ?? e) }, { status: 500 });
   }
 }
