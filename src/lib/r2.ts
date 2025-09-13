@@ -43,7 +43,7 @@ export function generateObjectKeyLegacy(media: MediaItem): string {
 /**
  * Presign a PUT request for uploading to R2
  */
-export async function presignPut(objectKey: string, contentType: string): Promise<{
+export async function presignPut(objectKey: string, contentType: string, auctionId: string): Promise<{
   url: string;
   method: 'PUT';
   headers?: Record<string, string>;
@@ -54,6 +54,7 @@ export async function presignPut(objectKey: string, contentType: string): Promis
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      auctionId,
       objectKey,
       contentType,
     }),
@@ -63,7 +64,13 @@ export async function presignPut(objectKey: string, contentType: string): Promis
     throw new Error(`Failed to get presigned PUT URL: ${response.statusText}`);
   }
 
-  return await response.json();
+  const result = await response.json();
+  // Return in the expected format
+  return {
+    url: result.url,
+    method: 'PUT' as const,
+    headers: result.headers
+  };
 }
 
 /**

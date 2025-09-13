@@ -248,7 +248,7 @@ export default function SendPage() {
           });
 
           // Get presigned PUT URL
-          const presign = await presignPut(objectKey, media.mime);
+          const presign = await presignPut(objectKey, media.mime, currentAuctionId);
 
           // Upload to R2
           const { etag } = await uploadBlobToR2(presign, blob);
@@ -483,7 +483,7 @@ export default function SendPage() {
     const { blob: zipBlob, errors } = await buildZipBundle(entries, csvText, onProgress)
     const ts = new Date().toISOString().replace(/[:.]/g,'-')
     const objectKey = `exports/${auctionId}/export-${auctionId}-${ts}.zip`
-    await uploadZipToR2(objectKey, zipBlob)
+    await uploadZipToR2(objectKey, zipBlob, auctionId)
     const zipUrl = await presignZipGet(objectKey, 7*24*3600) // 7 days
     return { objectKey, zipUrl, errors }
   }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { z } from 'zod';
 import { ensureAuthed } from '@/lib/ensureAuthed';
@@ -47,29 +47,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'bad key scope' }, { status: 400 });
     }
 
-    // 1) HEAD preflight
-    try {
-      const head = await s3.send(new HeadObjectCommand({ Bucket: env.R2_BUCKET, Key: objectKey }));
-      const etag = head.ETag?.replace(/"/g, '') ?? 'existing';
-      return NextResponse.json({ exists: true, key: objectKey, etag });
-    } catch (e: any) {
-      // Not found (continue), any other error should be surfaced
-      if (e?.$metadata?.httpStatusCode && e.$metadata.httpStatusCode !== 404) {
-        return NextResponse.json({ error: 'HEAD failed' }, { status: e.$metadata.httpStatusCode });
-      }
-    }
-
-    // 2) Presign guarded PUT (If-None-Match:* prevents accidental overwrite)
+    // Simple presigned PUT URL generation (no HEAD preflight)
     const cmd = new PutObjectCommand({
-        Bucket: env.R2_BUCKET,
+      Bucket: env.R2_BUCKET,
       Key: objectKey,
       ContentType: contentType,
-      // @ts-ignore - IfNoneMatch is supported in S3 semantics
-      IfNoneMatch: '*',
       ACL: 'private'
     });
     const url = await getSignedUrl(s3, cmd, { expiresIn: 60 });
-    return NextResponse.json({ exists: false, key: objectKey, url });
+    return NextResponse.json({ url, key: objectKey });
   } catch (error) {
     console.error('Error generating presigned PUT URL:', error);
     

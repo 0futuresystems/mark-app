@@ -1,9 +1,9 @@
-export async function uploadZipToR2(objectKey: string, zipBlob: Blob) {
+export async function uploadZipToR2(objectKey: string, zipBlob: Blob, auctionId: string) {
   // presign PUT
   const putRes = await fetch('/api/sign-put', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ objectKey, contentType: 'application/zip' })
+    body: JSON.stringify({ auctionId, objectKey, contentType: 'application/zip' })
   })
   if (!putRes.ok) throw new Error('Failed to sign PUT for ZIP')
   const { url, method = 'PUT', headers = {} } = await putRes.json()
