@@ -40,7 +40,7 @@ async function runSmokeTests() {
 
   const tests = [
     // Test unauthorized access to protected endpoints
-    ['POST', '/api/sign-put', { auctionId: 'test', contentType: 'image/jpeg' }],
+    ['POST', '/api/sign-put', { objectKey: 'test-key', contentType: 'image/jpeg' }],
     ['POST', '/api/sign-get', { objectKey: 'test', auctionId: 'test' }],
     ['POST', '/api/export/csv', { data: { lots: [], media: [] } }],
     ['POST', '/api/email', { subject: 'test' }],

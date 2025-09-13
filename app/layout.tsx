@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: 'Mark-App',
   description: 'Lot Logger PWA',
   // App Router manifest is auto-routed; make it explicit:
-  manifest: '/manifest.webmanifest',
+  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
