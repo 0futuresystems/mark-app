@@ -77,3 +77,66 @@ export async function deleteMediaCompletely(mediaId: string): Promise<void> {
 export async function updateMediaItem(mediaId: string, updates: Partial<MediaItem>): Promise<void> {
   await db.media.update(mediaId, updates);
 }
+
+/**
+ * Diagnostic function to check for media/blob inconsistencies
+ */
+export async function diagnoseMediaBlobs(): Promise<{
+  totalMedia: number;
+  totalBlobs: number;
+  orphanedMedia: string[];
+  orphanedBlobs: string[];
+  missingBlobs: string[];
+}> {
+  const allMedia = await db.media.toArray();
+  const allBlobs = await db.blobs.toArray();
+  
+  const mediaIds = new Set(allMedia.map(m => m.id));
+  const blobIds = new Set(allBlobs.map(b => b.id));
+  
+  const orphanedMedia = allMedia.filter(m => !blobIds.has(m.id)).map(m => m.id);
+  const orphanedBlobs = allBlobs.filter(b => !mediaIds.has(b.id)).map(b => b.id);
+  const missingBlobs = allMedia.filter(m => !blobIds.has(m.id)).map(m => m.id);
+  
+  console.log('Media/Blob Diagnostic:', {
+    totalMedia: allMedia.length,
+    totalBlobs: allBlobs.length,
+    orphanedMedia: orphanedMedia.length,
+    orphanedBlobs: orphanedBlobs.length,
+    missingBlobs: missingBlobs.length
+  });
+  
+  if (orphanedMedia.length > 0) {
+    console.warn('Orphaned media items (no corresponding blob):', orphanedMedia);
+  }
+  
+  if (orphanedBlobs.length > 0) {
+    console.warn('Orphaned blobs (no corresponding media):', orphanedBlobs);
+  }
+  
+  return {
+    totalMedia: allMedia.length,
+    totalBlobs: allBlobs.length,
+    orphanedMedia,
+    orphanedBlobs,
+    missingBlobs
+  };
+}
+
+/**
+ * Clean up orphaned blobs (blobs without corresponding media items)
+ */
+export async function cleanupOrphanedBlobs(): Promise<number> {
+  const { orphanedBlobs } = await diagnoseMediaBlobs();
+  
+  if (orphanedBlobs.length > 0) {
+    await db.transaction('rw', [db.blobs], async () => {
+      for (const blobId of orphanedBlobs) {
+        await db.blobs.delete(blobId);
+      }
+    });
+    console.log(`Cleaned up ${orphanedBlobs.length} orphaned blobs`);
+  }
+  
+  return orphanedBlobs.length;
+}

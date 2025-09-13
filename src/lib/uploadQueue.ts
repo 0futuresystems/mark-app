@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { getMediaBlob } from './blobStore';
+import { getMediaBlob, diagnoseMediaBlobs } from './blobStore';
 import { upsertMedia } from './supabaseSync';
 
 export interface UploadProgress {
@@ -96,6 +96,8 @@ async function uploadSingleMedia(media: any, onProgress?: (info: UploadProgress)
     const blob = await getMediaBlob(media.id);
     if (!blob) {
       console.warn(`No blob found for media ${media.id}`);
+      // Run diagnostics to understand the issue
+      await diagnoseMediaBlobs();
       return false;
     }
 

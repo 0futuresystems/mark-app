@@ -1,22 +1,36 @@
 // src/lib/media/getMediaBlob.ts
 // Normalize any media shape -> Blob (for zipping/email attachments).
+import { db } from '../../db';
+
 export type AnyMedia =
   | Blob
   | File
   | ArrayBuffer
-  | { blob?: Blob | File; dataUrl?: string; url?: string; path?: string; buffer?: ArrayBuffer; type?: string }
-  | string // data:, blob:, http(s) or OPFS-like "media/..."
+  | { blob?: Blob | File; dataUrl?: string; url?: string; path?: string; buffer?: ArrayBuffer; type?: string; id?: string }
+  | string // data:, blob:, http(s) or media ID
   ;
 
-async function readOPFSFile(path: string): Promise<Blob> {
-  // path like "media/uuid_1.jpg"
-  const root: any = await (navigator as any).storage?.getDirectory?.();
-  if (!root) throw new Error('OPFS not available');
-  const parts = path.split('/').filter(Boolean);
-  let dir = root;
-  for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p);
-  const fh = await dir.getFileHandle(parts.at(-1)!);
-  return fh.getFile();
+async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
+  const blobRecord = await db.blobs.get(mediaId);
+  if (!blobRecord?.data) {
+    // Check if media item exists but blob is missing
+    const mediaItem = await db.media.get(mediaId);
+    if (mediaItem) {
+      console.error(`Media item exists but blob is missing for ID: ${mediaId}`, {
+        mediaItem: {
+          id: mediaItem.id,
+          lotId: mediaItem.lotId,
+          type: mediaItem.type,
+          uploaded: mediaItem.uploaded,
+          createdAt: mediaItem.createdAt
+        }
+      });
+      throw new Error(`Media blob not found for ID: ${mediaId} (media item exists but blob missing)`);
+    } else {
+      throw new Error(`Media item not found for ID: ${mediaId}`);
+    }
+  }
+  return blobRecord.data;
 }
 
 export async function getMediaBlob(input: AnyMedia): Promise<Blob> {
@@ -38,11 +52,11 @@ export async function getMediaBlob(input: AnyMedia): Promise<Blob> {
       // Only allow if CORS-allowed or same-origin.
       return (await fetch(input)).blob();
     }
-    // OPFS-ish relative path
-    return await readOPFSFile(input);
+    // Assume it's a media ID and try to read from IndexedDB
+    return await readMediaFromIndexedDB(input);
   }
 
-  // Wrapped object shapes
+  // Wrapped object shapes (including MediaItem)
   if (typeof input === 'object') {
     const obj = input as any;
     if (obj.blob instanceof Blob) return obj.blob;
@@ -51,9 +65,13 @@ export async function getMediaBlob(input: AnyMedia): Promise<Blob> {
       if (typeof obj.url === 'string') return (await fetch(obj.url)).blob();
       if (obj.url instanceof URL) return (await fetch(obj.url)).blob();
     }
-    if (obj.path && typeof obj.path === 'string') return await readOPFSFile(obj.path);
     if (obj.buffer instanceof ArrayBuffer) return new Blob([obj.buffer], obj.type ? { type: obj.type } : {});
+    
+    // If it has an ID, try to read from IndexedDB (MediaItem case)
+    if (obj.id && typeof obj.id === 'string') {
+      return await readMediaFromIndexedDB(obj.id);
+    }
   }
 
-  throw new Error('unsupported media object (pass blob/file/url/dataUrl)');
+  throw new Error('unsupported media object (pass blob/file/url/dataUrl/mediaId)');
 }

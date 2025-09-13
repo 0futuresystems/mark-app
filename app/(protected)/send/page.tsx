@@ -473,10 +473,29 @@ export default function SendPage() {
     // Build list of { path, media } from local IndexedDB media items
     // Keep consistent names: media/<lotId>_<index|id>.<ext>
     const entries = []
+    const skippedMedia = []
+    
     for (const m of uploadedMedia) {
-      const ext = (m.mime?.includes('jpeg') ? 'jpg' : (m.mime?.split('/')[1] || 'bin'))
-      const name = m.filename || `${m.lotId}_${(m.index ?? 0)}.${ext}`
-      entries.push({ path: `media/${name}`, media: m })
+      try {
+        // Try to get the blob to verify it exists
+        const blob = await getMediaBlob(m.id)
+        if (!blob) {
+          console.warn(`Skipping media ${m.id}: blob not found`)
+          skippedMedia.push(m.id)
+          continue
+        }
+        
+        const ext = (m.mime?.includes('jpeg') ? 'jpg' : (m.mime?.split('/')[1] || 'bin'))
+        const name = m.filename || `${m.lotId}_${(m.index ?? 0)}.${ext}`
+        entries.push({ path: `media/${name}`, media: m })
+      } catch (error) {
+        console.warn(`Skipping media ${m.id}: error accessing blob`, error)
+        skippedMedia.push(m.id)
+      }
+    }
+    
+    if (skippedMedia.length > 0) {
+      console.warn(`Skipped ${skippedMedia.length} media items due to missing blobs:`, skippedMedia)
     }
 
     const { blob: zipBlob, errors } = await buildZipBundle(entries, csvText, onProgress)
