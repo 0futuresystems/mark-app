@@ -43,7 +43,7 @@ export function generateObjectKeyLegacy(media: MediaItem): string {
 /**
  * Presign a PUT request for uploading to R2
  */
-export async function presignPut(objectKey: string, contentType: string, auctionId: string): Promise<{
+export async function presignPut(objectKey: string, contentType: string): Promise<{
   url: string;
   method: 'PUT';
   headers?: Record<string, string>;
@@ -54,7 +54,6 @@ export async function presignPut(objectKey: string, contentType: string, auction
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      auctionId,
       objectKey,
       contentType,
     }),
