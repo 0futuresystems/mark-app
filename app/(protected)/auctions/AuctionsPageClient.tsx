@@ -6,7 +6,7 @@ import { db } from '@/db';
 import { Auction } from '@/types';
 import { getCurrentAuctionId, setCurrentAuctionId } from '@/lib/currentAuction';
 import { uid } from '@/lib/id';
-import { Plus, Edit2, Check, X, Archive, ArchiveRestore, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Edit2, Check, X, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 
 export default function AuctionsPageClient() {
   const router = useRouter();
@@ -157,17 +157,9 @@ export default function AuctionsPageClient() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <button 
-            onClick={() => router.push('/')}
-            className="w-12 h-12 bg-brand-panel rounded-xl flex items-center justify-center hover:bg-brand-border transition-all duration-150 transform hover:scale-105 active:scale-95 shadow-soft"
-          >
-            <ArrowLeft className="w-6 h-6 text-brand-text" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-brand-text">Auctions</h1>
-            <p className="text-brand-text-muted mt-1">Manage your auction events</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-brand-text">Auctions</h1>
+          <p className="text-brand-text-muted mt-1">Manage your auction events</p>
         </div>
         
         <div className="flex items-center gap-3">

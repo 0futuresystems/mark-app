@@ -95,7 +95,7 @@ export default function Dashboard() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-brand-text mb-2">New Entry</h3>
-                <p className="text-brand-text-muted text-sm">Create a new lot entry with photos and voice notes</p>
+                <p className="text-brand-text-muted text-sm">Add a new lot with photos and voice notes</p>
               </div>
             </div>
           </Link>
@@ -110,7 +110,7 @@ export default function Dashboard() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-brand-text mb-2">Review Data</h3>
-                <p className="text-brand-text-muted text-sm">Review and manage your existing lot entries</p>
+                <p className="text-brand-text-muted text-sm"> Manage your existing lot entries</p>
               </div>
             </div>
           </Link>

@@ -9,6 +9,7 @@ export interface CsvRow {
   lotNumber: string;
   status: string;
   createdAt: string;
+  description: string;
   mediaType: string;
   index: number;
   fileName: string;
@@ -46,6 +47,7 @@ export async function generateCloudCsv(
         lotNumber: lot.number,
         status: lot.status,
         createdAt: lot.createdAt.toISOString(),
+        description: lot.description ?? '',
         mediaType: '',
         index: 0,
         fileName: '',
@@ -80,6 +82,7 @@ export async function generateCloudCsv(
           lotNumber: lot.number,
           status: lot.status,
           createdAt: lot.createdAt.toISOString(),
+          description: lot.description ?? '',
           mediaType: mediaItem.type,
           index: mediaItem.index,
           fileName,
@@ -100,6 +103,7 @@ export async function generateCloudCsv(
     'lotNumber',
     'status',
     'createdAt',
+    'description',
     'mediaType',
     'index',
     'fileName',

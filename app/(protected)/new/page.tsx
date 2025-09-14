@@ -13,7 +13,7 @@ import AudioRecorder from '../../../src/components/AudioRecorder';
 import Toast from '../../../src/components/Toast';
 import { getCurrentAuction } from '../../../src/lib/currentAuction';
 // Removed Supabase sync import - keeping /new page fully offline
-import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft, FileText } from 'lucide-react';
 
 export default function NewLotPage() {
   const router = useRouter();
@@ -27,6 +27,27 @@ export default function NewLotPage() {
   // Removed uploadingPhotos state - not needed for offline-first approach
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; label: string } | null>(null);
   const [finishingLot, setFinishingLot] = useState(false);
+  const [description, setDescription] = useState('');
+
+  // Debounced save function for description
+  const saveDescription = async (text: string) => {
+    if (!lot) return;
+    try {
+      await db.lots.update(lot.id, { description: text });
+      console.log('Saved description for lot:', lot.id);
+    } catch (error) {
+      console.error('Error saving description:', error);
+    }
+  };
+
+  // Debounced description handler
+  const handleDescriptionChange = (text: string) => {
+    setDescription(text);
+    // Debounce the save operation
+    setTimeout(() => {
+      saveDescription(text);
+    }, 500);
+  };
 
   // Cleanup function to delete incomplete lot and its media
   const cleanupIncompleteLot = async (lotToCleanup: Lot) => {
@@ -62,6 +83,8 @@ export default function NewLotPage() {
       
       await db.lots.add(newLot);
       setLot(newLot);
+      // Hydrate description from lot data
+      setDescription(newLot.description ?? '');
       console.log('Created new lot:', newLot.id, newLot.number);
       
       // No network sync - keeping /new page fully offline
@@ -258,7 +281,7 @@ export default function NewLotPage() {
       // Mark current lot as complete
       if (lot) {
         setUploadProgress({ current: 1, total: 3, label: 'Saving lot data...' });
-        await db.lots.update(lot.id, { status: 'complete' });
+        await db.lots.update(lot.id, { status: 'complete', description });
         console.log('Marked lot as complete:', lot.id, lot.number);
         
         setUploadProgress({ current: 2, total: 3, label: 'Saving locally...' });
@@ -283,6 +306,7 @@ export default function NewLotPage() {
       setPhotos([]);
       setMainVoice(null);
       setDimensionsVoice(null);
+      setDescription('');
       
       // Scroll to top to show the fresh state
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -384,6 +408,42 @@ export default function NewLotPage() {
                   <span className="text-sm font-medium">Need at least 1 photo</span>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Description Section */}
+          <div className="bg-brand-panel rounded-2xl p-6 shadow-soft border border-brand-border lg:col-span-2">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-brand-text">Description</h2>
+              <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
+                <FileText className="w-4 h-4 text-white" />
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <textarea
+                value={description}
+                onChange={(e) => {
+                  if (!lot) {
+                    // Ensure lot exists on first input
+                    ensureLotExists();
+                  }
+                  handleDescriptionChange(e.target.value);
+                }}
+                placeholder="Enter lot description, condition notes, or other details..."
+                className="w-full h-32 px-4 py-3 bg-white border border-brand-border rounded-xl text-brand-text placeholder-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent focus:border-transparent resize-none"
+                disabled={!lot}
+              />
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-brand-text-muted">
+                Characters: <span className="font-semibold">{description.length}</span>
+              </span>
+              <div className="flex items-center space-x-1 text-brand-text-muted">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm font-medium">Optional</span>
+              </div>
             </div>
           </div>
 

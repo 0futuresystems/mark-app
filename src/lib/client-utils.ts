@@ -14,13 +14,14 @@ export async function copyToClipboard(text: string) {
   await navigator.clipboard.writeText(text)
 }
 
-export function buildCsvFromLots(lots: Array<{ id: string, title?: string }>, media: Array<{ lotId: string, url: string }>) {
-  // very simple CSV: LotID,Title,URL
-  const header = 'LotID,Title,URL'
+export function buildCsvFromLots(lots: Array<{ id: string, title?: string, description?: string }>, media: Array<{ lotId: string, url: string }>) {
+  // very simple CSV: LotID,Title,Description,URL
+  const header = 'LotID,Title,Description,URL'
   const rows = media.map(m => {
     const lot = lots.find(l => l.id === m.lotId)
     const title = (lot?.title || '').replace(/"/g, '""')
-    return `"${m.lotId}","${title}","${m.url}"`
+    const description = (lot?.description || '').replace(/"/g, '""')
+    return `"${m.lotId}","${title}","${description}","${m.url}"`
   })
   return [header, ...rows].join('\n')
 }
