@@ -50,6 +50,34 @@ To install on iPhone:
 3. Select "Add to Home Screen"
 4. The app will appear as a native-like experience
 
+## Offline Test
+
+To verify offline functionality:
+
+1. **Build and start the production server:**
+   ```bash
+   npm run build
+   npm start
+   ```
+
+2. **Open Chrome DevTools:**
+   - Go to Application → Service Workers
+   - Verify SW is registered and controlling
+   - Check Cache Storage for populated caches
+
+3. **Test offline behavior:**
+   - Navigate to different pages to populate cache
+   - Toggle "Offline" in DevTools Network tab
+   - Reload the page - should show app shell or offline page
+   - Visit cached pages - should load from cache
+   - Navigate to uncached pages - should show offline fallback
+
+4. **Verify PWA assets:**
+   - `/manifest.json` loads without auth
+   - `/sw.js` loads without auth
+   - `/~offline` page displays properly
+   - Icons and static assets are accessible
+
 ## Purpose
 
 This app is designed for efficient lot tracking and logging, providing a native app-like experience when installed on iPhone home screens while maintaining full offline functionality.
