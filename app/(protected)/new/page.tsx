@@ -423,16 +423,15 @@ export default function NewLotPage() {
             <div className="mb-4">
               <textarea
                 value={description}
-                onChange={(e) => {
+                onChange={async (e) => {
                   if (!lot) {
                     // Ensure lot exists on first input
-                    ensureLotExists();
+                    await ensureLotExists();
                   }
                   handleDescriptionChange(e.target.value);
                 }}
                 placeholder="Enter lot description, condition notes, or other details..."
                 className="w-full h-32 px-4 py-3 bg-white border border-brand-border rounded-xl text-brand-text placeholder-brand-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent focus:border-transparent resize-none"
-                disabled={!lot}
               />
             </div>
             
@@ -442,7 +441,9 @@ export default function NewLotPage() {
               </span>
               <div className="flex items-center space-x-1 text-brand-text-muted">
                 <AlertCircle className="w-4 h-4" />
-                <span className="text-sm font-medium">Optional</span>
+                <span className="text-sm font-medium">
+                  {lot ? 'Optional' : 'Will create lot on first input'}
+                </span>
               </div>
             </div>
           </div>
