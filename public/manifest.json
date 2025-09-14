@@ -2,9 +2,11 @@
   "name": "Mark-App",
   "short_name": "Mark",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icon-192.png",

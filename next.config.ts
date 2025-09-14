@@ -27,6 +27,32 @@ const withPWA = createNextPWA({
         handler: 'NetworkOnly',
         method: 'GET'
       },
+      // Navigation requests - NetworkFirst with offline fallback
+      {
+        urlPattern: ({request}) => request.mode === 'navigate',
+        handler: 'NetworkFirst',
+        options: {
+          cacheName: 'navigations',
+          networkTimeoutSeconds: 3,
+          expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
+          plugins: [{
+            handlerDidError: async ({ request }) => {
+              // Return offline page for navigation failures
+              return caches.match('/~offline') || new Response('Offline', { status: 200 });
+            }
+          }]
+        }
+      },
+      // Scripts and styles - StaleWhileRevalidate for performance
+      {
+        urlPattern: ({request}) => 
+          request.destination === 'script' || request.destination === 'style',
+        handler: 'StaleWhileRevalidate',
+        options: {
+          cacheName: 'static-resources',
+          expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 }
+        }
+      },
       // Images (local/public) — allow offline viewing of thumbs
       {
         urlPattern: ({request}) => request.destination === 'image',
