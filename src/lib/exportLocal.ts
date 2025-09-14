@@ -56,7 +56,7 @@ export function generateCSVFromData(data: ExportData): string {
   const csvRows: string[] = [];
 
   // CSV header
-  csvRows.push('lotId,auctionId,auctionName,lotNumber,status,createdAt,mediaType,index,fileName,size,uploaded,remotePath');
+  csvRows.push('lotId,auctionId,auctionName,lotNumber,status,createdAt,description,mediaType,index,fileName,size,uploaded,remotePath');
 
   lots.forEach(lot => {
     const lotMedia = media.filter(m => m.lotId === lot.id);
@@ -70,6 +70,7 @@ export function generateCSVFromData(data: ExportData): string {
         lot.number,
         lot.status,
         lot.createdAt.toISOString(),
+        lot.description ?? '',
         '',
         '0',
         '',
@@ -88,6 +89,7 @@ export function generateCSVFromData(data: ExportData): string {
           lot.number,
           lot.status,
           lot.createdAt.toISOString(),
+          lot.description ?? '',
           mediaItem.type,
           mediaItem.index.toString(),
           fileName,
