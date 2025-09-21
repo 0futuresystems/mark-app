@@ -49,7 +49,7 @@ export default function AuthPage() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          shouldCreateUser: false // invite-only
+          shouldCreateUser: true // invite-only
         }
       })
 
