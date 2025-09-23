@@ -16,7 +16,11 @@ export async function saveMediaBlob(id: string, blob: Blob): Promise<void> {
  */
 export async function getMediaBlob(id: string): Promise<Blob | null> {
   try {
-    const blobRecord = await db.blobs.get(id);
+    const [blobRecord, mediaRecord] = await Promise.all([
+      db.blobs.get(id),
+      db.media.get(id)
+    ]);
+    
     if (!blobRecord) {
       console.warn(`No blob record found for ID: ${id}`);
       return null;
@@ -26,12 +30,19 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
       return null;
     }
     
-    // Ensure we return a proper Blob object with arrayBuffer() method
+    // Get the correct MIME type from the media record
+    const correctMimeType = mediaRecord?.mime || 'image/jpeg';
+    
+    // Ensure we return a proper Blob object with correct MIME type
     const data = blobRecord.data as any;
     if (data instanceof Blob && typeof data.arrayBuffer === 'function') {
+      // Fix blob type if it's missing or incorrect
+      if (!data.type || !data.type.startsWith('image/')) {
+        return data.slice(0, data.size, correctMimeType);
+      }
       return data;
     } else if (data instanceof ArrayBuffer) {
-      return new Blob([data], { type: 'image/jpeg' });
+      return new Blob([data], { type: correctMimeType });
     } else if (typeof data === 'string') {
       // Handle base64 strings
       const binaryString = atob(data);
@@ -39,7 +50,7 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
-      return new Blob([bytes], { type: 'image/jpeg' });
+      return new Blob([bytes], { type: correctMimeType });
     } else {
       console.error(`Unexpected blob data type for ID: ${id}`, typeof data, data);
       return null;

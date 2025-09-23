@@ -649,8 +649,8 @@ export default function ReviewPage() {
 
             {/* Photos Section */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Photos</h3>
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Photos</h3>
                 <CameraCapture onFiles={handleAddPhotos} />
               </div>
               
@@ -665,8 +665,8 @@ export default function ReviewPage() {
 
             {/* Description Section */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Description</h3>
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Description</h3>
                 <div className="flex items-center space-x-2">
                   {previousDescription && (
                     <button
