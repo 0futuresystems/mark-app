@@ -45,7 +45,7 @@ export default function LotThumbnail({
           dataType: blobRecord?.data ? typeof blobRecord.data : 'none',
           dataConstructor: blobRecord?.data?.constructor?.name,
           dataSize: blobRecord?.data instanceof Blob ? blobRecord.data.size : 
-                   blobRecord?.data instanceof ArrayBuffer ? blobRecord.data.byteLength :
+                   (blobRecord?.data as any)?.byteLength ||
                    (blobRecord?.data as any)?.length || 'unknown'
         });
         

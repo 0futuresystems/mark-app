@@ -85,10 +85,10 @@ function SortablePhotoItem({
         />
       </div>
       
-      {/* Enhanced overlay with controls - always visible for mobile */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-100 transition-all duration-300 rounded-xl flex flex-col justify-between p-2">
-        {/* Top controls */}
-        <div className="flex justify-end space-x-1">
+      {/* Enhanced overlay with controls - always visible for mobile with pointer events fix */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-100 transition-all duration-300 rounded-xl flex flex-col justify-between p-2 pointer-events-none">
+        {/* Top controls - restore pointer events for buttons */}
+        <div className="flex justify-end space-x-1 pointer-events-auto">
           <button 
             onClick={(e) => {
               e.stopPropagation();
@@ -113,15 +113,19 @@ function SortablePhotoItem({
           </button>
         </div>
         
-        {/* Center view indicator */}
-        <div className="flex-1 flex items-center justify-center">
-          <div className="p-2 bg-white/20 backdrop-blur-sm rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        {/* Center view indicator - clickable for lightbox */}
+        <div className="flex-1 flex items-center justify-center pointer-events-auto">
+          <div 
+            className="p-2 bg-white/20 backdrop-blur-sm rounded-full text-white opacity-100 transition-opacity duration-300 cursor-pointer hover:bg-white/30"
+            onClick={() => onOpenLightbox(index)}
+            title="View full size"
+          >
             <Eye className="w-4 h-4" />
           </div>
         </div>
         
-        {/* Bottom controls */}
-        <div className="flex justify-between items-end">
+        {/* Bottom controls - restore pointer events for buttons */}
+        <div className="flex justify-between items-end pointer-events-auto">
           <div className="text-white text-xs font-semibold bg-black/40 px-2 py-1 rounded-lg backdrop-blur-sm">
             #{photo.index}
           </div>
