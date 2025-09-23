@@ -33,15 +33,15 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
     // Get the correct MIME type from the media record
     const correctMimeType = mediaRecord?.mime || 'image/jpeg';
     
-    // Return the original blob data directly to avoid corruption
+    // Return the blob data with correct MIME type
     const data = blobRecord.data as any;
     
     if (data instanceof Blob) {
-      // If blob already has correct type, return as-is to avoid data corruption
+      // If blob already has correct type, return as-is
       if (data.type === correctMimeType) {
         return data;
       }
-      // Only fix MIME type if needed, using slice to preserve data
+      // Fix MIME type using slice to preserve data integrity
       return data.slice(0, data.size, correctMimeType);
     } else if (data instanceof ArrayBuffer) {
       return new Blob([data], { type: correctMimeType });

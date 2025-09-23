@@ -108,7 +108,7 @@ export default function ReviewPage() {
   const handleGenerateDescription = async () => {
     if (!selectedLot || isGenerating) return;
     
-    const photos = lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index);
+    const photos = allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index);
     if (photos.length === 0) {
       showToast('Add at least one photo to generate a description', 'error');
       return;
@@ -256,7 +256,7 @@ export default function ReviewPage() {
     if (!selectedLot) return;
 
     try {
-      const currentPhotos = lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index);
+      const currentPhotos = allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index);
       const nextIndex = currentPhotos.length > 0 ? currentPhotos[currentPhotos.length - 1].index + 1 : 1;
       
       for (let i = 0; i < files.length; i++) {
@@ -297,7 +297,7 @@ export default function ReviewPage() {
       navigator.vibrate(30);
     }
     
-    const photos = lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index);
+    const photos = allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index);
     const currentIndex = photos.findIndex(p => p.id === mediaId);
     
     if (currentIndex === -1) return;
@@ -655,7 +655,7 @@ export default function ReviewPage() {
               </div>
               
               <PhotoGrid
-                photos={lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index)}
+                photos={allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index)}
                 onReorder={handlePhotoReorder}
                 onDelete={handlePhotoDelete}
                 onMove={movePhoto}
@@ -678,9 +678,9 @@ export default function ReviewPage() {
                   )}
                   <button
                     onClick={handleGenerateDescription}
-                    disabled={isGenerating || lotMedia.filter(m => m.type === 'photo').length === 0}
+                    disabled={isGenerating || allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').length === 0}
                     className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                    title={lotMedia.filter(m => m.type === 'photo').length === 0 ? "Add a photo to generate" : "Generate from Photos"}
+                    title={allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').length === 0 ? "Add a photo to generate" : "Generate from Photos"}
                   >
                     {isGenerating ? (
                       <>
@@ -811,7 +811,7 @@ export default function ReviewPage() {
           <LightboxCarousel
             open={lightboxOpen}
             onOpenChange={setLightboxOpen}
-            items={lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index)}
+            items={allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index)}
             startIndex={lightboxIndex}
             onDelete={handlePhotoDelete}
           />
