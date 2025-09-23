@@ -14,7 +14,9 @@ export function useObjectUrl(loader: () => Promise<Blob | null>, deps: any[]) {
     (async () => {
       try {
         const blob = await loader();
-        if (!blob) return;
+        if (!blob) {
+          return;
+        }
         objectUrl = URL.createObjectURL(blob);
         if (!cancelled) setUrl(objectUrl);
       } catch (e: any) {

@@ -20,12 +20,14 @@ export default function LotThumbnail({
   showOverlay = false 
 }: LotThumbnailProps) {
   const [imageError, setImageError] = useState(false);
+  
   const { url, loading, error } = useObjectUrl(
     async () => {
       const blob = await getMediaBlob(mediaItem.id);
       if (!blob) {
         throw new Error('No blob data found');
       }
+      
       
       // Validate blob type
       if (!blob.type.startsWith('image/')) {
@@ -45,6 +47,7 @@ export default function LotThumbnail({
   };
 
   const config = sizeConfig[size];
+  
 
   if (loading) {
     return (

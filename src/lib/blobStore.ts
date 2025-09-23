@@ -31,7 +31,7 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
     if (data instanceof Blob && typeof data.arrayBuffer === 'function') {
       return data;
     } else if (data instanceof ArrayBuffer) {
-      return new Blob([data]);
+      return new Blob([data], { type: 'image/jpeg' });
     } else if (typeof data === 'string') {
       // Handle base64 strings
       const binaryString = atob(data);
@@ -39,7 +39,7 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
-      return new Blob([bytes]);
+      return new Blob([bytes], { type: 'image/jpeg' });
     } else {
       console.error(`Unexpected blob data type for ID: ${id}`, typeof data, data);
       return null;
