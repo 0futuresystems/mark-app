@@ -44,7 +44,18 @@ export default function LightboxCarousel({
   const current = items[index];
 
   const { url, loading, error } = useObjectUrl(
-    () => current ? getMediaBlob(current.id) : Promise.resolve(null),
+    async () => {
+      if (!current) return null;
+      try {
+        console.log('[LightboxCarousel] Loading blob for:', current.id);
+        const blob = await getMediaBlob(current.id);
+        console.log('[LightboxCarousel] Got blob:', blob.size, 'bytes');
+        return blob;
+      } catch (err) {
+        console.error('[LightboxCarousel] Failed to load blob:', current.id, err);
+        throw err;
+      }
+    },
     [current?.id]
   );
 

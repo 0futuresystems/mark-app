@@ -1,3 +1,4 @@
+
 // src/lib/media/getMediaBlob.ts
 // Normalize any media shape -> Blob (for zipping/email attachments).
 import { db } from '../../db';
@@ -11,12 +12,14 @@ export type AnyMedia =
   ;
 
 async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
+  console.log('[getMediaBlob] Reading from IndexedDB:', mediaId);
+  
   const blobRecord = await db.blobs.get(mediaId);
   if (!blobRecord?.data) {
     // Check if media item exists but blob is missing
     const mediaItem = await db.media.get(mediaId);
     if (mediaItem) {
-      console.error(`Media item exists but blob is missing for ID: ${mediaId}`, {
+      console.error(`[getMediaBlob] Media item exists but blob is missing for ID: ${mediaId}`, {
         mediaItem: {
           id: mediaItem.id,
           lotId: mediaItem.lotId,
@@ -27,26 +30,48 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
       });
       throw new Error(`Media blob not found for ID: ${mediaId} (media item exists but blob missing)`);
     } else {
+      console.error(`[getMediaBlob] Media item not found for ID: ${mediaId}`);
       throw new Error(`Media item not found for ID: ${mediaId}`);
     }
   }
   
+  console.log('[getMediaBlob] Found blob record:', {
+    id: mediaId,
+    dataType: typeof blobRecord.data,
+    isBlob: blobRecord.data instanceof Blob,
+    isArrayBuffer: blobRecord.data instanceof ArrayBuffer,
+    isUint8Array: blobRecord.data instanceof Uint8Array
+  });
+  
   // Ensure we return a proper Blob object with arrayBuffer() method
   const data = blobRecord.data as any;
   if (data instanceof Blob) {
+    console.log('[getMediaBlob] Returning existing Blob:', data.size, 'bytes');
     return data;
   } else if (data instanceof ArrayBuffer) {
+    console.log('[getMediaBlob] Converting ArrayBuffer to Blob:', data.byteLength, 'bytes');
+    return new Blob([data]);
+  } else if (data instanceof Uint8Array) {
+    console.log('[getMediaBlob] Converting Uint8Array to Blob:', data.length, 'bytes');
     return new Blob([data]);
   } else if (typeof data === 'string') {
-    // Handle base64 strings
-    const binaryString = atob(data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    console.log('[getMediaBlob] Converting base64 string to Blob');
+    try {
+      // Handle base64 strings
+      const binaryString = atob(data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes]);
+      console.log('[getMediaBlob] Converted base64 to Blob:', blob.size, 'bytes');
+      return blob;
+    } catch (base64Error) {
+      console.error('[getMediaBlob] Base64 decode failed:', base64Error);
+      throw new Error(`Invalid base64 data for ID: ${mediaId}`);
     }
-    return new Blob([bytes]);
   } else {
-    console.error(`Unexpected blob data type for ID: ${mediaId}`, typeof data, data);
+    console.error(`[getMediaBlob] Unexpected blob data type for ID: ${mediaId}`, typeof data, data);
     throw new Error(`Invalid blob data type for ID: ${mediaId}`);
   }
 }
