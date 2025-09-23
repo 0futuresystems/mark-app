@@ -125,14 +125,18 @@ export default function ReviewPage() {
           const blob = await getMediaBlob(photo.id);
           if (!blob) return null;
           
-          // Convert blob to base64
-          const buffer = await blob.arrayBuffer();
-          const bytes = new Uint8Array(buffer);
-          let binary = '';
-          for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-          }
-          return btoa(binary);
+          // Convert blob to base64 properly
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result as string;
+              // Remove the data:image/...; prefix to get just the base64
+              const base64Data = base64.split(',')[1];
+              resolve(base64Data);
+            };
+            reader.onerror = () => reject(new Error('Failed to read blob'));
+            reader.readAsDataURL(blob);
+          });
         } catch (error) {
           console.error('Error processing photo:', photo.id, error);
           return null;

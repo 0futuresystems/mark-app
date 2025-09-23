@@ -91,40 +91,11 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
-// OCR implementation using Tesseract.js
+// Simplified OCR implementation - skip OCR for now to avoid worker issues
 async function extractTextFromImage(base64Data: string): Promise<string> {
-  try {
-    // Import Tesseract dynamically for server-side usage
-    const { createWorker } = await import('tesseract.js');
-    
-    // Create worker and initialize
-    const worker = await createWorker('eng');
-    
-    // Convert base64 to buffer for Tesseract
-    const base64Only = base64Data.replace(/^data:image\/[a-z]+;base64,/, '');
-    const buffer = Buffer.from(base64Only, 'base64');
-    
-    // Perform OCR with timeout
-    const timeoutPromise = new Promise<string>((_, reject) => {
-      setTimeout(() => reject(new Error('OCR timeout')), 10000); // 10 second timeout
-    });
-    
-    const ocrPromise = worker.recognize(buffer).then(result => {
-      const text = result.data.text?.trim() || '';
-      return text;
-    });
-    
-    const text = await Promise.race([ocrPromise, timeoutPromise]);
-    
-    // Clean up worker
-    await worker.terminate();
-    
-    // Return only if we found meaningful text (more than just noise)
-    return text.length > 3 ? text : '';
-  } catch (error) {
-    console.error('OCR failed:', error);
-    return '';
-  }
+  // OCR disabled temporarily due to Next.js worker compatibility issues
+  // The vision model is very capable of reading text in images anyway
+  return '';
 }
 
 export async function POST(request: NextRequest) {
