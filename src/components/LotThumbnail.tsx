@@ -2,9 +2,10 @@
 'use client';
 
 import { MediaItem } from '../types';
-import { db } from '../db';
 import { useState, useEffect } from 'react';
 import { ImageIcon } from 'lucide-react';
+import { useObjectUrl } from '../hooks/useObjectUrl';
+import { getMediaBlob } from '../lib/media/getMediaBlob';
 
 interface LotThumbnailProps {
   mediaItem: MediaItem;
@@ -19,100 +20,20 @@ export default function LotThumbnail({
   className = '',
   showOverlay = false 
 }: LotThumbnailProps) {
-  const [imageError, setImageError] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    let objectUrl: string | null = null;
-
-    const loadImage = async () => {
-      try {
-        setLoading(true);
-        setImageError(false);
-        
-        console.log('[LotThumbnail] Loading image for:', mediaItem.id);
-        
-        // Get blob directly from database
-        const blobRecord = await db.blobs.get(mediaItem.id);
-        if (!blobRecord?.data) {
-          console.error('[LotThumbnail] No blob data found for:', mediaItem.id);
-          throw new Error('No blob data found');
-        }
-
-        console.log('[LotThumbnail] Blob record found:', { 
-          id: mediaItem.id, 
-          dataType: typeof blobRecord.data,
-          isBlob: blobRecord.data instanceof Blob,
-          isArrayBuffer: blobRecord.data instanceof ArrayBuffer
-        });
-
-        // Create blob with correct MIME type
-        let blob: Blob;
-        const data = blobRecord.data as any;
-        
-        if (data instanceof Blob) {
-          blob = data;
-        } else if (data instanceof ArrayBuffer) {
-          blob = new Blob([data], { type: mediaItem.mime || 'image/jpeg' });
-        } else if (data instanceof Uint8Array) {
-          blob = new Blob([data], { type: mediaItem.mime || 'image/jpeg' });
-        } else if (typeof data === 'string') {
-          // Handle base64 strings
-          try {
-            const binaryString = atob(data);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-            }
-            blob = new Blob([bytes], { type: mediaItem.mime || 'image/jpeg' });
-          } catch (base64Error) {
-            console.error('[LotThumbnail] Base64 decode failed:', base64Error);
-            throw new Error('Invalid base64 data');
-          }
-        } else {
-          console.error('[LotThumbnail] Unexpected data format:', typeof data, data);
-          throw new Error('Unexpected data format');
-        }
-
-        if (blob.size === 0) {
-          console.error('[LotThumbnail] Empty blob data for:', mediaItem.id);
-          throw new Error('Empty blob data');
-        }
-
-        console.log('[LotThumbnail] Created blob:', { 
-          size: blob.size, 
-          type: blob.type 
-        });
-
-        // Create object URL
-        objectUrl = URL.createObjectURL(blob);
-        console.log('[LotThumbnail] Created object URL:', objectUrl);
-        
-        if (mounted) {
-          setImageUrl(objectUrl);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('[LotThumbnail] Error loading image:', mediaItem.id, error);
-        if (mounted) {
-          setImageError(true);
-          setLoading(false);
-        }
-      }
-    };
-
-    loadImage();
-
-    return () => {
-      mounted = false;
-      if (objectUrl) {
-        console.log('[LotThumbnail] Revoking object URL:', objectUrl);
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [mediaItem.id, mediaItem.mime]);
+  console.log('[LotThumbnail] Rendering with mediaItem:', mediaItem);
+  console.log('[LotThumbnail] About to call useObjectUrl with deps:', [mediaItem.id]);
+  
+  const { url, loading, error } = useObjectUrl(
+    async () => {
+      console.log('[LotThumbnail] Loading blob for mediaItem:', mediaItem.id);
+      const blob = await getMediaBlob(mediaItem.id);
+      console.log('[LotThumbnail] Got blob:', blob.size, 'bytes');
+      return blob;
+    },
+    [mediaItem.id]
+  );
+  
+  console.log('[LotThumbnail] useObjectUrl returned:', { url: url ? 'HAS_URL' : 'NO_URL', loading, error });
 
   const sizeConfig = {
     small: { container: 'w-12 h-12', text: 'text-xs' },
@@ -122,12 +43,11 @@ export default function LotThumbnail({
 
   const config = sizeConfig[size];
   
-  console.log('[LotThumbnail] Rendering state:', { 
-    id: mediaItem.id,
+  console.log('[Debug] LotThumbnail state:', { 
     loading, 
-    imageError, 
-    hasUrl: !!imageUrl,
-    url: imageUrl ? 'HAS_URL' : 'NO_URL'
+    error, 
+    url: url ? 'HAS_URL' : 'NO_URL',
+    imageError: false
   });
 
   if (loading) {
@@ -141,13 +61,13 @@ export default function LotThumbnail({
     );
   }
 
-  if (imageError || !imageUrl) {
+  if (error || !url) {
     return (
       <div className={`${config.container} bg-gradient-to-br from-red-100 to-red-200 rounded-xl flex items-center justify-center ${className} border-2 border-red-300`}>
         <div className="flex flex-col items-center space-y-1">
           <ImageIcon className="w-4 h-4 text-red-500" />
           <span className={`text-red-600 ${config.text} font-medium text-center`}>
-            Error
+            {error || 'Error'}
           </span>
         </div>
       </div>
@@ -157,15 +77,14 @@ export default function LotThumbnail({
   return (
     <div className={`${config.container} relative overflow-hidden rounded-xl ${className} group`}>
       <img
-        src={imageUrl}
+        src={url}
         alt={`Photo ${mediaItem.index}`}
         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
         onError={(e) => {
-          console.error('[LotThumbnail] Image load error:', e, 'URL:', imageUrl);
-          setImageError(true);
+          console.error('[LotThumbnail] Image load error:', e, 'URL:', url);
         }}
         onLoad={() => {
-          console.log('[LotThumbnail] Image loaded successfully:', imageUrl);
+          console.log('[LotThumbnail] Image loaded successfully:', url);
         }}
         loading="lazy"
       />
