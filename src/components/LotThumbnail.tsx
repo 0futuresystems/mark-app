@@ -28,14 +28,14 @@ export default function LotThumbnail({
         throw new Error('No blob data found');
       }
       
-      // Ensure correct MIME type before creating object URL
-      const fixedBlob = blob.type && blob.type.startsWith('image/') 
-        ? blob 
-        : blob.slice(0, blob.size, mediaItem.mime || 'image/jpeg');
+      // Validate the blob data isn't corrupted
+      if (blob.size === 0) {
+        throw new Error('Empty blob data');
+      }
       
-      return fixedBlob;
+      return blob;
     },
-[mediaItem.id]
+    [mediaItem.id]
   );
 
   const sizeConfig = {

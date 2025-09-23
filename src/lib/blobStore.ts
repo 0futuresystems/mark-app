@@ -33,24 +33,31 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
     // Get the correct MIME type from the media record
     const correctMimeType = mediaRecord?.mime || 'image/jpeg';
     
-    // Ensure we return a proper Blob object with correct MIME type
+    // Return the original blob data directly to avoid corruption
     const data = blobRecord.data as any;
-    if (data instanceof Blob && typeof data.arrayBuffer === 'function') {
-      // Fix blob type if it's missing or incorrect
-      if (!data.type || !data.type.startsWith('image/')) {
-        return data.slice(0, data.size, correctMimeType);
+    
+    if (data instanceof Blob) {
+      // If blob already has correct type, return as-is to avoid data corruption
+      if (data.type === correctMimeType) {
+        return data;
       }
-      return data;
+      // Only fix MIME type if needed, using slice to preserve data
+      return data.slice(0, data.size, correctMimeType);
     } else if (data instanceof ArrayBuffer) {
       return new Blob([data], { type: correctMimeType });
     } else if (typeof data === 'string') {
       // Handle base64 strings
-      const binaryString = atob(data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      try {
+        const binaryString = atob(data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return new Blob([bytes], { type: correctMimeType });
+      } catch (error) {
+        console.error(`Failed to decode base64 for ${id}:`, error);
+        return null;
       }
-      return new Blob([bytes], { type: correctMimeType });
     } else {
       console.error(`Unexpected blob data type for ID: ${id}`, typeof data, data);
       return null;
