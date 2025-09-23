@@ -40,22 +40,28 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
     dataType: typeof blobRecord.data,
     isBlob: blobRecord.data instanceof Blob,
     isArrayBuffer: blobRecord.data instanceof ArrayBuffer,
-    isUint8Array: blobRecord.data instanceof Uint8Array
+    isUint8Array: blobRecord.data instanceof Uint8Array,
+    dataSize: blobRecord.data instanceof Blob ? blobRecord.data.size : 
+              (blobRecord.data as any)?.byteLength ||
+              (blobRecord.data as any)?.length ||
+              typeof blobRecord.data === 'string' ? blobRecord.data.length : 'unknown'
   });
   
   // Ensure we return a proper Blob object with arrayBuffer() method
   const data = blobRecord.data as any;
+  let finalBlob: Blob;
+  
   if (data instanceof Blob) {
-    console.log('[getMediaBlob] Returning existing Blob:', data.size, 'bytes');
-    return data;
+    console.log('[getMediaBlob] Returning existing Blob:', data.size, 'bytes', 'type:', data.type);
+    finalBlob = data;
   } else if (data instanceof ArrayBuffer) {
     console.log('[getMediaBlob] Converting ArrayBuffer to Blob:', data.byteLength, 'bytes');
-    return new Blob([data]);
+    finalBlob = new Blob([data as ArrayBuffer], { type: 'image/jpeg' }); // Add default MIME type
   } else if (data instanceof Uint8Array) {
     console.log('[getMediaBlob] Converting Uint8Array to Blob:', data.length, 'bytes');
-    return new Blob([data]);
+    finalBlob = new Blob([data.buffer], { type: 'image/jpeg' }); // Add default MIME type
   } else if (typeof data === 'string') {
-    console.log('[getMediaBlob] Converting base64 string to Blob');
+    console.log('[getMediaBlob] Converting base64 string to Blob, length:', data.length);
     try {
       // Handle base64 strings
       const binaryString = atob(data);
@@ -63,9 +69,8 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
-      const blob = new Blob([bytes]);
-      console.log('[getMediaBlob] Converted base64 to Blob:', blob.size, 'bytes');
-      return blob;
+      finalBlob = new Blob([bytes], { type: 'image/jpeg' });
+      console.log('[getMediaBlob] Converted base64 to Blob:', finalBlob.size, 'bytes');
     } catch (base64Error) {
       console.error('[getMediaBlob] Base64 decode failed:', base64Error);
       throw new Error(`Invalid base64 data for ID: ${mediaId}`);
@@ -73,6 +78,44 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
   } else {
     console.error(`[getMediaBlob] Unexpected blob data type for ID: ${mediaId}`, typeof data, data);
     throw new Error(`Invalid blob data type for ID: ${mediaId}`);
+  }
+
+  // CRITICAL: Validate blob data integrity (from ChatGPT's suggestion)
+  try {
+    const arrayBuffer = await finalBlob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const header = Array.from(uint8Array.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    
+    const isValidImage = 
+      header.startsWith('ff d8') || // JPEG
+      header.startsWith('89 50 4e 47') || // PNG  
+      header.startsWith('47 49 46 38') || // GIF
+      arrayBuffer.byteLength > 0; // At least has some data
+      
+    console.log('[getMediaBlob] BLOB VALIDATION:', {
+      mediaId,
+      size: finalBlob.size,
+      type: finalBlob.type,
+      headerBytes: header,
+      isValidImage,
+      isJPEG: header.startsWith('ff d8'),
+      isPNG: header.startsWith('89 50 4e 47'),
+      isGIF: header.startsWith('47 49 46 38'),
+      isEmpty: arrayBuffer.byteLength === 0
+    });
+    
+    if (arrayBuffer.byteLength === 0) {
+      throw new Error(`Blob contains no data for ID: ${mediaId}`);
+    }
+    
+    if (!isValidImage) {
+      console.warn(`[getMediaBlob] WARNING: Blob may not be valid image data for ID: ${mediaId}`);
+    }
+    
+    return finalBlob;
+  } catch (validationError) {
+    console.error('[getMediaBlob] Blob validation failed:', validationError);
+    throw new Error(`Blob validation failed for ID: ${mediaId}: ${(validationError as Error).message}`);
   }
 }
 

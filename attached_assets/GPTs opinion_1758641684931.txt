@@ -1,0 +1,215 @@
+You’re seeing black squares because your <img> never gets a real URL. In your UI the grid cell has a dark background, so when src is empty/invalid you just see a black box.
+
+There are three common culprits (all fixable):
+
+getMediaBlob() isn’t returning a real Blob (e.g., you stored bytes in Dexie but never wrap them in a Blob or you’re trying to fetch from R2 but never hitting the route).
+
+Your useObjectUrl hook doesn’t actually create (or retains) the blob: URL.
+
+CSP blocks blob: in the Replit preview iframe—images silently fail and you get black cells.
+
+Below is a drop-in fix for each part.
+
+A) Make getMediaBlob return a real image Blob (handles Dexie bytes, R2, and HEIC)
+// src/lib/media/getMediaBlob.ts
+import { db } from '@/db'; // your Dexie instance
+import type { MediaItem } from '@/types';
+
+export async function getMediaBlob(mediaId: string): Promise<Blob> {
+  // 1) Try local IndexedDB first
+  const rec: MediaItem | undefined = await db.media.get(mediaId);
+  if (!rec) throw new Error(`Media ${mediaId} not found`);
+
+  // If you already store a Blob on the record (common pattern)
+  // @ts-ignore — if your type doesn’t declare it
+  if (rec.blob instanceof Blob && rec.blob.size > 0) return rec.blob;
+
+  // If you stored raw bytes (ArrayBuffer/Uint8Array) + mime
+  // @ts-ignore
+  if (rec.bytes) {
+    // Normalize to ArrayBuffer
+    // @ts-ignore
+    const buf: ArrayBuffer = rec.bytes instanceof ArrayBuffer
+      // @ts-ignore
+      ? rec.bytes
+      // @ts-ignore
+      : (rec.bytes.buffer ?? await (rec.bytes as Blob).arrayBuffer());
+
+    const mime =
+      // @ts-ignore
+      rec.mime || (rec.kind === 'photo' ? 'image/jpeg' : 'audio/webm');
+
+    let blob = new Blob([buf], { type: mime });
+
+    // If HEIC/HEIF (iPhones), transcode to JPEG so <img> can render in Chrome
+    if (/heic|heif/i.test(mime)) {
+      const { default: heic2any } = await import('heic2any'); // npm i heic2any
+      const out = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 });
+      blob = Array.isArray(out) ? (out[0] as Blob) : (out as Blob);
+    }
+    return blob;
+  }
+
+  // 2) If already uploaded to R2, fetch via your API (presigned/stream)
+  // @ts-ignore
+  if (rec.r2_key) {
+    const res = await fetch(`/api/media/${mediaId}`);
+    if (!res.ok) throw new Error(`Remote fetch failed: ${res.status}`);
+    const blob = await res.blob();
+    // Optional: persist locally as Blob for faster thumbnails next time
+    // @ts-ignore
+    await db.media.update(mediaId, { blob });
+    return blob;
+  }
+
+  throw new Error(`No local bytes/blob or remote key for ${mediaId}`);
+}
+
+
+If you don’t use Dexie or your field names differ, keep the same idea: return a proper Blob (with an image mime), and handle HEIC→JPEG if needed.
+
+B) Use a robust useObjectUrl hook and don’t render <img> until you have one
+// src/hooks/useObjectUrl.ts
+import { useEffect, useRef, useState } from 'react';
+
+export function useObjectUrl<T extends Blob>(
+  getter: () => Promise<T>,
+  deps: any[]
+) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
+  const currentUrl = useRef<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const blob = await getter();
+        if (!alive) return;
+        const next = URL.createObjectURL(blob);
+        // revoke previous
+        if (currentUrl.current) URL.revokeObjectURL(currentUrl.current);
+        currentUrl.current = next;
+        setUrl(next);
+      } catch (e) {
+        if (!alive) return;
+        setUrl(null);
+        setError(e);
+        console.error('[useObjectUrl] failed:', e);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+      if (currentUrl.current) {
+        URL.revokeObjectURL(currentUrl.current);
+        currentUrl.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return { url, loading, error };
+}
+
+
+Then in LotThumbnail.tsx:
+
+import { useObjectUrl } from '@/hooks/useObjectUrl';
+import { ImageIcon } from 'lucide-react';
+import { getMediaBlob } from '@/lib/media/getMediaBlob';
+
+export default function LotThumbnail({ mediaItem, size='medium', className='', showOverlay=false }: LotThumbnailProps) {
+  const { url, loading, error } = useObjectUrl(
+    () => getMediaBlob(mediaItem.id),
+    [mediaItem.id]
+  );
+
+  const sizeConfig = {
+    small:  { container: 'w-12 h-12', text: 'text-xs' },
+    medium: { container: 'w-20 h-20', text: 'text-sm' },
+    large:  { container: 'w-32 h-32', text: 'text-base' }
+  };
+  const config = sizeConfig[size];
+
+  return (
+    <div className={`${config.container} relative overflow-hidden rounded-xl bg-gray-100 ${className} group`}>
+      {/* Skeleton / error fallback */}
+      {!url && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          {loading ? (
+            <div className="animate-pulse w-1/2 h-1/2 rounded bg-gray-200" />
+          ) : (
+            <ImageIcon className="w-6 h-6 text-gray-400" />
+          )}
+        </div>
+      )}
+
+      {url && (
+        <img
+          src={url}
+          alt={`Photo ${mediaItem.index}`}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+          crossOrigin="anonymous"
+          onError={(e) => console.error('[LotThumbnail] onError URL:', url, e)}
+          onLoad={() => console.log('[LotThumbnail] loaded:', url)}
+          loading="lazy"
+        />
+      )}
+
+      {showOverlay && (
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-300" />
+      )}
+    </div>
+  );
+}
+
+
+Key change: don’t render <img> until you have a non-null url. If src={undefined}, Chrome will “load” the current page and you’ll just see your black background.
+
+C) Allow blob: in your CSP (Replit’s preview often runs in an iframe)
+
+If you’ve set a strict CSP (headers or a <meta http-equiv="Content-Security-Policy">), add blob: to img-src and media-src. In next.config.js:
+
+// next.config.js
+const securityHeaders = [
+  {
+    key: 'Content-Security-Policy',
+    value: [
+      "default-src 'self';",
+      "img-src 'self' blob: data: https:;",
+      "media-src 'self' blob: data: https:;",
+      "connect-src 'self' https: blob: ws: wss:;",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https:;",
+      "style-src 'self' 'unsafe-inline' https:;",
+      "font-src 'self' data: https:;"
+    ].join(' ')
+  }
+];
+
+module.exports = {
+  async headers() {
+    return [{ source: '/(.*)', headers: securityHeaders }];
+  },
+};
+
+
+Open DevTools in the Replit preview. If you see “Refused to load image 'blob:…' due to Content Security Policy”, this change is required.
+
+D) Quick sanity checks
+
+After taking a photo, confirm Dexie actually has bytes: run a temporary debug:
+
+const rec = await db.media.get(mediaItem.id);
+console.log('media rec', mediaItem.id, rec && { hasBytes: !!rec?.bytes, mime: rec?.mime, size: rec?.blob?.size });
+
+
+Log the blob size/type in getMediaBlob just before returning. Anything with size: 0 or without an image/* mime will render blank.
+
+If your camera produces HEIC, keep the heic2any conversion in place (Chrome won’t render HEIC).
+
+TL;DR
+
+Implement getMediaBlob to return a real image Blob, use a solid useObjectUrl to create a blob: URL, don’t render <img> until you have that URL, and ensure your CSP allows blob:. With those in, your thumbnails will render in Replit just like they do locally.
