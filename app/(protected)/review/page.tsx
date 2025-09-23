@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import { uid } from '../../../src/lib/id';
-import { saveMediaBlob, deleteMediaCompletely } from '../../../src/lib/blobStore';
+import { saveMediaBlob, deleteMediaCompletely, getMediaBlob } from '../../../src/lib/blobStore';
 import { updatePhotoOrder } from '../../../src/lib/mediaOps';
 import { downscaleImage } from '@/lib/files';
 import AudioRecorder from '../../../src/components/AudioRecorder';
@@ -15,7 +15,7 @@ import CameraCapture from '../../../src/components/CameraCapture';
 import LotThumbnail from '../../../src/components/LotThumbnail';
 import LightboxCarousel from '../../../src/components/LightboxCarousel';
 import PhotoGrid from '../../../src/components/PhotoGrid';
-import { ArrowLeft, Trash2, Plus, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
 import { useToast } from '../../../src/contexts/ToastContext';
 
 export default function ReviewPage() {
@@ -29,6 +29,9 @@ export default function ReviewPage() {
   const [loading, setLoading] = useState(true);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [description, setDescription] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [previousDescription, setPreviousDescription] = useState('');
 
   const loadLots = useCallback(async () => {
     if (!currentAuctionId) return;
@@ -76,6 +79,8 @@ export default function ReviewPage() {
   useEffect(() => {
     if (selectedLot) {
       loadLotMedia(selectedLot.id);
+      setDescription(selectedLot.description || '');
+      setPreviousDescription('');
     }
   }, [selectedLot]);
 
@@ -85,6 +90,105 @@ export default function ReviewPage() {
       setLotMedia(media);
     } catch (error) {
       console.error('Error loading lot media:', error);
+    }
+  };
+
+  const handleDescriptionChange = useCallback(async (value: string) => {
+    setDescription(value);
+    
+    if (!selectedLot) return;
+    
+    try {
+      await db.lots.update(selectedLot.id, { description: value });
+    } catch (error) {
+      console.error('Error saving description:', error);
+    }
+  }, [selectedLot]);
+
+  const handleGenerateDescription = async () => {
+    if (!selectedLot || isGenerating) return;
+    
+    const photos = lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index);
+    if (photos.length === 0) {
+      showToast('Add at least one photo to generate a description', 'error');
+      return;
+    }
+
+    setIsGenerating(true);
+    setPreviousDescription(description);
+
+    try {
+      // Get up to 2 photos and convert to base64
+      const selectedPhotos = photos.slice(0, 2);
+      const imagePromises = selectedPhotos.map(async (photo) => {
+        try {
+          const blob = await getMediaBlob(photo.id);
+          if (!blob) return null;
+          
+          // Convert blob to base64
+          const buffer = await blob.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          let binary = '';
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          return btoa(binary);
+        } catch (error) {
+          console.error('Error processing photo:', photo.id, error);
+          return null;
+        }
+      });
+
+      const imageResults = await Promise.all(imagePromises);
+      const images = imageResults.filter(img => img !== null);
+
+      if (images.length === 0) {
+        throw new Error('Could not process any photos');
+      }
+
+      const response = await fetch('/api/generate-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          images,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const newDescription = result.data.description_bullets.map((bullet: string) => `• ${bullet}`).join('\n');
+        const finalDescription = `${result.data.title}\n\n${newDescription}\n\nKeywords: ${result.data.keywords}\n\n${result.data.caution}`;
+        
+        setDescription(finalDescription);
+        await db.lots.update(selectedLot.id, { description: finalDescription });
+        
+        showToast('Description generated successfully!', 'success');
+      } else {
+        throw new Error(result.error || 'Failed to generate description');
+      }
+    } catch (error) {
+      console.error('Error generating description:', error);
+      showToast('Could not generate description. Try again or edit manually.', 'error');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleUndoDescription = () => {
+    if (previousDescription !== '') {
+      setDescription(previousDescription);
+      if (selectedLot) {
+        db.lots.update(selectedLot.id, { description: previousDescription });
+      }
+      setPreviousDescription('');
+      showToast('Description restored', 'success');
     }
   };
 
@@ -553,6 +657,55 @@ export default function ReviewPage() {
                 onMove={movePhoto}
                 onOpenLightbox={openLightbox}
               />
+            </div>
+
+            {/* Description Section */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Description</h3>
+                <div className="flex items-center space-x-2">
+                  {previousDescription && (
+                    <button
+                      onClick={handleUndoDescription}
+                      className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                    >
+                      Undo
+                    </button>
+                  )}
+                  <button
+                    onClick={handleGenerateDescription}
+                    disabled={isGenerating || lotMedia.filter(m => m.type === 'photo').length === 0}
+                    className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                    title={lotMedia.filter(m => m.type === 'photo').length === 0 ? "Add a photo to generate" : "Generate from Photos"}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Analyzing photos...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Generate from Photos</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <textarea
+                value={description}
+                onChange={(e) => handleDescriptionChange(e.target.value)}
+                placeholder="Add a description for this lot, or use 'Generate from Photos' to create one automatically..."
+                rows={8}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm font-mono leading-relaxed"
+              />
+              
+              {description && description.includes('Attribution/age are') && (
+                <p className="text-xs text-gray-500 italic mt-2">
+                  Attribution/age are best estimates.
+                </p>
+              )}
             </div>
 
             {/* Main Voice Section */}
