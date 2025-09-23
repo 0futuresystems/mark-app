@@ -1,9 +1,8 @@
 'use client';
 
 import { MediaItem } from '../types';
-import { getMediaBlob } from '../lib/blobStore';
-import { useObjectUrl } from '../hooks/useObjectUrl';
-import { useState } from 'react';
+import { db } from '../db';
+import { useState, useEffect } from 'react';
 import { ImageIcon } from 'lucide-react';
 
 interface LotThumbnailProps {
@@ -20,23 +19,73 @@ export default function LotThumbnail({
   showOverlay = false 
 }: LotThumbnailProps) {
   const [imageError, setImageError] = useState(false);
-  
-  const { url, loading, error } = useObjectUrl(
-    async () => {
-      const blob = await getMediaBlob(mediaItem.id);
-      if (!blob) {
-        throw new Error('No blob data found');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    let objectUrl: string | null = null;
+
+    const loadImage = async () => {
+      try {
+        setLoading(true);
+        setImageError(false);
+        
+        // Get blob directly from database
+        const blobRecord = await db.blobs.get(mediaItem.id);
+        if (!blobRecord?.data) {
+          throw new Error('No blob data found');
+        }
+
+        // Create blob with correct MIME type
+        let blob: Blob;
+        const data = blobRecord.data as any;
+        
+        if (data instanceof Blob) {
+          blob = new Blob([data], { type: mediaItem.mime || 'image/jpeg' });
+        } else if (data instanceof ArrayBuffer) {
+          blob = new Blob([data], { type: mediaItem.mime || 'image/jpeg' });
+        } else if (typeof data === 'string') {
+          // Handle base64 strings
+          const binaryString = atob(data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          blob = new Blob([bytes], { type: mediaItem.mime || 'image/jpeg' });
+        } else {
+          throw new Error('Unexpected data format');
+        }
+
+        if (blob.size === 0) {
+          throw new Error('Empty blob data');
+        }
+
+        // Create object URL
+        objectUrl = URL.createObjectURL(blob);
+        
+        if (mounted) {
+          setImageUrl(objectUrl);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error loading image:', mediaItem.id, error);
+        if (mounted) {
+          setImageError(true);
+          setLoading(false);
+        }
       }
-      
-      // Validate the blob data isn't corrupted
-      if (blob.size === 0) {
-        throw new Error('Empty blob data');
+    };
+
+    loadImage();
+
+    return () => {
+      mounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
       }
-      
-      return blob;
-    },
-    [mediaItem.id]
-  );
+    };
+  }, [mediaItem.id, mediaItem.mime]);
 
   const sizeConfig = {
     small: { container: 'w-12 h-12', text: 'text-xs' },
@@ -58,13 +107,13 @@ export default function LotThumbnail({
     );
   }
 
-  if (error || !url || imageError) {
+  if (imageError || !imageUrl) {
     return (
       <div className={`${config.container} bg-gradient-to-br from-red-100 to-red-200 rounded-xl flex items-center justify-center ${className} border-2 border-red-300`}>
         <div className="flex flex-col items-center space-y-1">
           <ImageIcon className="w-4 h-4 text-red-500" />
           <span className={`text-red-600 ${config.text} font-medium text-center`}>
-            {error === 'Invalid image type' ? 'Invalid' : 'Error'}
+            Error
           </span>
         </div>
       </div>
@@ -74,7 +123,7 @@ export default function LotThumbnail({
   return (
     <div className={`${config.container} relative overflow-hidden rounded-xl ${className} group`}>
       <img
-        src={url}
+        src={imageUrl}
         alt={`Photo ${mediaItem.index}`}
         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
         onError={() => setImageError(true)}

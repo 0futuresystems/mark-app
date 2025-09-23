@@ -66,7 +66,7 @@ function SortablePhotoItem({
       <div
         {...attributes}
         {...listeners}
-        className="absolute top-2 right-2 z-20 w-6 h-6 bg-black/50 text-white rounded cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center"
+        className="absolute top-2 right-2 z-20 w-6 h-6 bg-black/50 text-white rounded cursor-grab active:cursor-grabbing opacity-100 transition-opacity duration-200 flex items-center justify-center"
         title="Drag to reorder"
       >
         <GripVertical className="w-3 h-3" />
@@ -85,8 +85,8 @@ function SortablePhotoItem({
         />
       </div>
       
-      {/* Enhanced overlay with controls */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl flex flex-col justify-between p-2">
+      {/* Enhanced overlay with controls - always visible for mobile */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-100 transition-all duration-300 rounded-xl flex flex-col justify-between p-2">
         {/* Top controls */}
         <div className="flex justify-end space-x-1">
           <button 
