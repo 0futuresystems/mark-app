@@ -22,7 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { MediaItem } from '../types';
 import LotThumbnail from './LotThumbnail';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, GripVertical, ChevronUp, ChevronDown, Eye } from 'lucide-react';
 
 interface SortablePhotoItemProps {
   photo: MediaItem;
@@ -74,38 +74,56 @@ function SortablePhotoItem({
 
       {/* Photo thumbnail with click to view */}
       <div 
-        className="cursor-pointer transform transition-all duration-150 hover:scale-105"
+        className="cursor-pointer transform transition-all duration-300 hover:scale-105 hover:z-10 relative"
         onClick={() => onOpenLightbox(index)}
       >
-        <LotThumbnail mediaItem={photo} size="medium" className="w-full" />
+        <LotThumbnail 
+          mediaItem={photo} 
+          size="large" 
+          className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300" 
+          showOverlay={true}
+        />
       </div>
       
-      {/* Overlay with controls - More prominent styling */}
-      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition-all duration-300 rounded-lg flex items-center justify-center">
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col space-y-1">
-          <div className="flex space-x-1 justify-center">
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onMove(photo.id, 'up');
-              }}
-              disabled={index === 0}
-              className="p-2 bg-brand-accent rounded-lg text-white hover:bg-brand-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-150 hover:scale-110 active:scale-95"
-              title="Move up"
-            >
-              ↑
-            </button>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onMove(photo.id, 'down');
-              }}
-              disabled={index === totalPhotos - 1}
-              className="p-2 bg-brand-accent rounded-lg text-white hover:bg-brand-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-150 hover:scale-110 active:scale-95"
-              title="Move down"
-            >
-              ↓
-            </button>
+      {/* Enhanced overlay with controls */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl flex flex-col justify-between p-2">
+        {/* Top controls */}
+        <div className="flex justify-end space-x-1">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onMove(photo.id, 'up');
+            }}
+            disabled={index === 0}
+            className="p-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-110 active:scale-95"
+            title="Move up"
+          >
+            <ChevronUp className="w-3 h-3" />
+          </button>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onMove(photo.id, 'down');
+            }}
+            disabled={index === totalPhotos - 1}
+            className="p-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-110 active:scale-95"
+            title="Move down"
+          >
+            <ChevronDown className="w-3 h-3" />
+          </button>
+        </div>
+        
+        {/* Center view indicator */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="p-2 bg-white/20 backdrop-blur-sm rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <Eye className="w-4 h-4" />
+          </div>
+        </div>
+        
+        {/* Bottom controls */}
+        <div className="flex justify-between items-end">
+          <div className="text-white text-xs font-semibold bg-black/40 px-2 py-1 rounded-lg backdrop-blur-sm">
+            #{photo.index}
           </div>
           <button 
             onClick={(e) => {
@@ -114,18 +132,14 @@ function SortablePhotoItem({
                 onDelete(photo.id);
               }
             }}
-            className="px-3 py-2 bg-red-500 rounded-lg text-white hover:bg-red-600 font-medium text-sm transform transition-all duration-150 hover:scale-110 active:scale-95 shadow-soft"
+            className="p-1.5 bg-red-500/80 backdrop-blur-sm rounded-lg text-white hover:bg-red-500 transform transition-all duration-200 hover:scale-110 active:scale-95"
             title="Delete photo"
           >
-            <Trash2 className="w-4 h-4 mx-auto" />
+            <Trash2 className="w-3 h-3" />
           </button>
         </div>
       </div>
       
-      {/* Photo index indicator */}
-      <div className="absolute top-2 left-2 bg-brand-accent text-white text-sm px-2 py-1 rounded-lg font-medium shadow-soft">
-        #{photo.index}
-      </div>
     </div>
   );
 }
@@ -178,7 +192,7 @@ export default function PhotoGrid({
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={photos.map(p => p.id)} strategy={verticalListSortingStrategy}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
           {photos.map((photo, index) => (
             <SortablePhotoItem
               key={photo.id}
