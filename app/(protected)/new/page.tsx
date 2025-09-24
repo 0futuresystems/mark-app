@@ -51,6 +51,102 @@ export default function NewLotPage() {
     }, 500);
   };
 
+  // Helper function to show toast messages
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+  };
+
+  // Handle AI description generation from photos
+  const handleGenerateDescription = async () => {
+    if (!lot || isGenerating) return;
+    
+    const currentPhotos = photos.filter(p => p.type === 'photo').sort((a, b) => a.index - b.index);
+    if (currentPhotos.length === 0) {
+      showToast('Add at least one photo to generate a description', 'error');
+      return;
+    }
+
+    setIsGenerating(true);
+    setPreviousDescription(description);
+
+    try {
+      // Get up to 2 photos and convert to base64
+      const selectedPhotos = currentPhotos.slice(0, 2);
+      const imagePromises = selectedPhotos.map(async (photo) => {
+        try {
+          const blob = await getMediaBlob(photo.id);
+          if (!blob) return null;
+          
+          // Convert blob to base64 properly
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result as string;
+              // Remove the data:image/...; prefix to get just the base64
+              const base64Data = base64.split(',')[1];
+              resolve(base64Data);
+            };
+            reader.onerror = () => reject(new Error('Failed to read blob'));
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.error('Error processing photo:', photo.id, error);
+          return null;
+        }
+      });
+
+      const imageResults = await Promise.all(imagePromises);
+      const images = imageResults.filter(img => img !== null);
+
+      if (images.length === 0) {
+        throw new Error('Could not process any photos');
+      }
+
+      const response = await fetch('/api/generate-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          images,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        const newDescription = result.data.description_bullets.map((bullet: string) => `• ${bullet}`).join('\n');
+        const finalDescription = `${result.data.title}\n\n${newDescription}\n\nKeywords: ${result.data.keywords}\n\n${result.data.caution}`;
+        
+        setDescription(finalDescription);
+        await db.lots.update(lot.id, { description: finalDescription });
+        
+        showToast('Description generated successfully!', 'success');
+      } else {
+        throw new Error(result.error || 'Failed to generate description');
+      }
+    } catch (error) {
+      console.error('Error generating description:', error);
+      showToast('Could not generate description. Try again or edit manually.', 'error');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Handle undo description (if user wants to revert to previous description)
+  const handleUndoDescription = () => {
+    if (previousDescription !== undefined) {
+      setDescription(previousDescription);
+      saveDescription(previousDescription);
+      setPreviousDescription('');
+      showToast('Description reverted', 'success');
+    }
+  };
+
   // Cleanup function to delete incomplete lot and its media
   const cleanupIncompleteLot = async (lotToCleanup: Lot) => {
     try {
@@ -420,6 +516,35 @@ export default function NewLotPage() {
               <div className="w-8 h-8 bg-brand-accent rounded-lg flex items-center justify-center">
                 <FileText className="w-4 h-4 text-white" />
               </div>
+            </div>
+            
+            <div className="flex items-center space-x-2 mb-4">
+              {previousDescription && (
+                <button
+                  onClick={handleUndoDescription}
+                  className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  Undo
+                </button>
+              )}
+              <button
+                onClick={handleGenerateDescription}
+                disabled={isGenerating || photos.length === 0}
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                title={photos.length === 0 ? "Add a photo to generate" : "Generate from Photos"}
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Analyzing photos...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Generate from Photos</span>
+                  </>
+                )}
+              </button>
             </div>
             
             <div className="mb-4">
