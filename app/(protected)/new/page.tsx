@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { uid } from '../../../src/lib/id';
 import { nextLotNumber } from '../../../src/lib/lotNumber';
 import { downscaleImage } from '@/lib/files';
-import { saveMediaBlob } from '../../../src/lib/blobStore';
+import { saveMediaBlob, getMediaBlob } from '../../../src/lib/blobStore';
 import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import CameraCapture from '../../../src/components/CameraCapture';
@@ -13,7 +13,7 @@ import AudioRecorder from '../../../src/components/AudioRecorder';
 import Toast from '../../../src/components/Toast';
 import { getCurrentAuction } from '../../../src/lib/currentAuction';
 // Removed Supabase sync import - keeping /new page fully offline
-import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft, FileText } from 'lucide-react';
+import { Camera, Mic, CheckCircle, AlertCircle, ArrowLeft, FileText, Sparkles } from 'lucide-react';
 
 export default function NewLotPage() {
   const router = useRouter();
@@ -28,6 +28,8 @@ export default function NewLotPage() {
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; label: string } | null>(null);
   const [finishingLot, setFinishingLot] = useState(false);
   const [description, setDescription] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [previousDescription, setPreviousDescription] = useState('');
 
   // Debounced save function for description
   const saveDescription = async (text: string) => {
