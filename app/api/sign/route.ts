@@ -2,7 +2,7 @@ import "server-only";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { z } from "zod";
+import { z } from "zod4";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { S3Client } from "@aws-sdk/client-s3";

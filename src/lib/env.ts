@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod4";
 
 let _serverEnv: z.infer<typeof serverSchema> | null = null;
 

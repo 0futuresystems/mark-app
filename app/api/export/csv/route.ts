@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod4';
 import { ensureAuthed } from '@/lib/ensureAuthed';
 import { limit } from '@/lib/rateLimit';
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { z } from 'zod';
+import { z } from 'zod4';
 
 const emailSchema = z.object({
   to: z.string().email(),
