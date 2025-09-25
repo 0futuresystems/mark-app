@@ -224,35 +224,40 @@ export default function MultiShotCamera({
     if (busy) return;
     setBusy(true);
     
-    // Prioritize video stream capture for multi-shot workflow
-    if (videoRef.current) {
-      try {
-        await captureFromVideo();
-        return;
-      } catch (error) {
-        console.error('[Camera] Video capture failed, falling back to native:', error);
-        // Fall through to native input as fallback
+    try {
+      // Prioritize video stream capture for multi-shot workflow
+      if (videoRef.current) {
+        try {
+          await captureFromVideo();
+          return;
+        } catch (error) {
+          console.error('[Camera] Video capture failed, falling back to native:', error);
+          // Fall through to native input as fallback
+        }
+      }
+      
+      // Fallback to native input only when video stream is unavailable or fails
+      if (isIOS && nativeInputRef.current) {
+        try {
+          setIsCapturingNative(true);
+          navigator.vibrate?.(10);
+          setFlash(true);
+          setTimeout(() => setFlash(false), 140);
+          
+          // Trigger native camera as fallback
+          nativeInputRef.current.click();
+          return; // The onNativeInputChange will handle the rest
+        } catch (error) {
+          console.error('[Camera] Native input fallback failed:', error);
+          setIsCapturingNative(false);
+        }
+      }
+    } finally {
+      // Only reset busy if not using native capture (which handles its own state)
+      if (!isCapturingNative) {
+        setBusy(false);
       }
     }
-    
-    // Fallback to native input only when video stream is unavailable or fails
-    if (isIOS && nativeInputRef.current) {
-      try {
-        setIsCapturingNative(true);
-        navigator.vibrate?.(10);
-        setFlash(true);
-        setTimeout(() => setFlash(false), 140);
-        
-        // Trigger native camera as fallback
-        nativeInputRef.current.click();
-        return; // The onNativeInputChange will handle the rest
-      } catch (error) {
-        console.error('[Camera] Native input fallback failed:', error);
-        setIsCapturingNative(false);
-      }
-    }
-    
-    setBusy(false);
   }
 
   function removeShot(idx: number) {
