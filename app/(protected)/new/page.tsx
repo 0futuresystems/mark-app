@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { uid } from '../../../src/lib/id';
 import { nextLotNumber } from '../../../src/lib/lotNumber';
-import { downscaleImage } from '@/lib/files';
+import { processImage } from '@/lib/files';
 import { saveMediaBlob, getMediaBlob } from '../../../src/lib/blobStore';
 import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
@@ -256,7 +256,11 @@ export default function NewLotPage() {
         });
         
         const file = files[i];
-        const resizedFile = await downscaleImage(file);
+        const resizedFile = await processImage(file, {
+          maxLongEdge: 2560,
+          quality: 0.95,
+          skipIfAlreadyProcessed: true
+        });
         
         const mediaId = uid();
         const mediaItem: MediaItem = {
