@@ -564,64 +564,62 @@ export default function MultiShotCamera({
               onTouchMove={onVideoTouchMove}
               onTouchEnd={onVideoTouchEnd}
             />
-            <div className="iosCam__grid" />
             <div className={`iosCam__flash ${flash ? 'iosCam__flash--show' : ''}`} />
             
             {/* Zoom indicator */}
             {supportsZoom && zoomLevel > minZoom && (
-              <div style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                background: 'rgba(0, 0, 0, 0.6)',
-                color: 'white',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: '500'
-              }}>
+              <div className="iosCam__zoomIndicator">
                 {zoomLevel.toFixed(1)}x
               </div>
             )}
           </div>
 
           <div className="iosCam__bottomBar">
-            <button className="iosCam__thumb" onClick={() => openReview()} aria-label="Review shots">
-              {last ? <img src={URL.createObjectURL(last)} alt="" /> : <div style={{width:'100%',height:'100%'}}/>}
-            </button>
-
-            <div className="iosCam__spacer" />
-            <button className="iosCam__shutterWrap" aria-label="Shutter" onClick={capture} disabled={busy}>
-              <div className="iosCam__shutterRing" />
-              <div className="iosCam__shutterCore" />
-            </button>
-            <div className="iosCam__spacer" />
-
-            <div className="iosCam__controls">
-              <button className="iosCam__btn iosCam__btn--ghost" onClick={flip} aria-label="Flip camera"><RefreshCcw size={20}/></button>
-              <button className="iosCam__btn iosCam__btn--ghost" onClick={toggleTorch} aria-label="Torch"><Flashlight size={20}/></button>
-              {supportsZoom && (
-                <>
-                  <button 
-                    className="iosCam__btn iosCam__btn--ghost" 
-                    onClick={zoomOut} 
-                    aria-label="Zoom out"
-                    disabled={zoomLevel <= minZoom}
-                    style={{ opacity: zoomLevel <= minZoom ? 0.5 : 1 }}
-                  >
-                    <ZoomOut size={20}/>
-                  </button>
-                  <button 
-                    className="iosCam__btn iosCam__btn--ghost" 
-                    onClick={zoomIn} 
-                    aria-label="Zoom in"
-                    disabled={zoomLevel >= maxZoom}
-                    style={{ opacity: zoomLevel >= maxZoom ? 0.5 : 1 }}
-                  >
-                    <ZoomIn size={20}/>
-                  </button>
-                </>
-              )}
+            {/* Left side - Review thumbnail */}
+            <div className="iosCam__leftControls">
+              <button className="iosCam__thumb" onClick={() => openReview()} aria-label="Review shots">
+                {last ? <img src={URL.createObjectURL(last)} alt="" /> : <div className="iosCam__thumbEmpty"/>}
+              </button>
+            </div>
+            
+            {/* Center - Shutter button */}
+            <div className="iosCam__centerControls">
+              <button className="iosCam__shutterWrap" aria-label="Shutter" onClick={capture} disabled={busy}>
+                <div className="iosCam__shutterRing" />
+                <div className="iosCam__shutterCore" />
+              </button>
+            </div>
+            
+            {/* Right side - Camera controls */}
+            <div className="iosCam__rightControls">
+              <div className="iosCam__controlsGroup">
+                <button className="iosCam__iconBtn" onClick={flip} aria-label="Flip camera">
+                  <RefreshCcw size={18}/>
+                </button>
+                <button className="iosCam__iconBtn" onClick={toggleTorch} aria-label="Torch">
+                  <Flashlight size={18}/>
+                </button>
+                {supportsZoom && (
+                  <div className="iosCam__zoomControls">
+                    <button 
+                      className="iosCam__zoomBtn" 
+                      onClick={zoomOut} 
+                      aria-label="Zoom out"
+                      disabled={zoomLevel <= minZoom}
+                    >
+                      <ZoomOut size={16}/>
+                    </button>
+                    <button 
+                      className="iosCam__zoomBtn" 
+                      onClick={zoomIn} 
+                      aria-label="Zoom in"
+                      disabled={zoomLevel >= maxZoom}
+                    >
+                      <ZoomIn size={16}/>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
