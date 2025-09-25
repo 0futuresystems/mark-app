@@ -1,30 +1,69 @@
-export async function downscaleImage(
+export interface ProcessImageOptions {
+  maxLongEdge?: number;  // Target long edge size (default: 2560px)
+  quality?: number;      // JPEG quality 0-1 (default: 0.95)
+  skipIfAlreadyProcessed?: boolean; // Skip if already meets criteria (default: true)
+}
+
+export async function processImage(
   file: File, 
-  maxW: number = 1600, 
-  quality: number = 0.82
+  options: ProcessImageOptions = {}
 ): Promise<File> {
+  const {
+    maxLongEdge = 2560,
+    quality = 0.95,
+    skipIfAlreadyProcessed = true
+  } = options;
+
+  // Console log for debugging (remove after verification)
+  console.log('[processImage] Processing:', file.name, 'size:', file.size, 'type:', file.type);
+
   return new Promise((resolve, reject) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
     const img = new Image();
     
     img.onload = () => {
       const { width, height } = img;
-      const ratio = Math.min(maxW / width, maxW / height);
+      const longEdge = Math.max(width, height);
       
-      canvas.width = width * ratio;
-      canvas.height = height * ratio;
+      // Skip re-processing if already meets criteria
+      if (skipIfAlreadyProcessed && file.type === 'image/jpeg' && longEdge <= maxLongEdge) {
+        console.log('[processImage] Skipping - already meets criteria:', longEdge, '<=', maxLongEdge);
+        resolve(file);
+        return;
+      }
+
+      // Calculate target dimensions preserving aspect ratio
+      const ratio = Math.min(maxLongEdge / width, maxLongEdge / height, 1); // Don't upscale
+      const targetWidth = Math.round(width * ratio);
+      const targetHeight = Math.round(height * ratio);
+
+      // Create canvas with proper dimensions
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      // Set canvas size to target resolution (not CSS scaling)
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       
-      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+      // Enable high-quality image smoothing
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      // Draw and process
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
       
       canvas.toBlob(
         (blob) => {
           if (blob) {
-            const resizedFile = new File([blob], file.name, {
+            const processedFile = new File([blob], file.name, {
               type: 'image/jpeg',
               lastModified: Date.now()
             });
-            resolve(resizedFile);
+            console.log('[processImage] Processed:', targetWidth + 'x' + targetHeight, 'quality:', quality, 'size:', processedFile.size);
+            resolve(processedFile);
           } else {
             reject(new Error('Failed to create blob'));
           }
@@ -36,6 +75,19 @@ export async function downscaleImage(
     
     img.onerror = () => reject(new Error('Failed to load image'));
     img.src = URL.createObjectURL(file);
+  });
+}
+
+// Legacy function for backward compatibility - now uses processImage
+export async function downscaleImage(
+  file: File, 
+  maxW: number = 1600, 
+  quality: number = 0.82
+): Promise<File> {
+  return processImage(file, { 
+    maxLongEdge: maxW, 
+    quality,
+    skipIfAlreadyProcessed: false // Legacy behavior - always process
   });
 }
 
