@@ -208,28 +208,34 @@ export default function MultiShotCamera({
     const blob: Blob = await new Promise(res => canvas.toBlob(b => res(b!), 'image/jpeg', jpegQuality));
     const file = new File([blob], `shot-${Date.now()}.jpg`, { type: 'image/jpeg' });
     
-    setShots(prev => prev.concat(file));
+    // Apply the same high-quality processing as native capture
+    const processedFile = await processImage(file, {
+      maxLongEdge: 2560,
+      quality: 0.95,
+      skipIfAlreadyProcessed: false, // Ensure consistent processing
+      handleEXIF: true
+    });
     
-    // Show fallback indicator briefly when using video capture on iOS
-    if (isIOS) {
-      const indicator = document.createElement('div');
-      indicator.style.cssText = `
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        background: rgba(0, 0, 0, 0.7); color: white; padding: 8px 16px;
-        border-radius: 4px; font-size: 12px; z-index: 10001;
-        pointer-events: none;
-      `;
-      indicator.textContent = 'Optimized quality (fallback)';
-      document.body.appendChild(indicator);
-      setTimeout(() => document.body.removeChild(indicator), 2000);
-    }
+    setShots(prev => prev.concat(processedFile));
+    
   }
 
   async function capture() {
-    if (!videoRef.current || busy) return;
+    if (busy) return;
     setBusy(true);
     
-    // On iOS, prefer native file input for high-res capture
+    // Prioritize video stream capture for multi-shot workflow
+    if (videoRef.current) {
+      try {
+        await captureFromVideo();
+        return;
+      } catch (error) {
+        console.error('[Camera] Video capture failed, falling back to native:', error);
+        // Fall through to native input as fallback
+      }
+    }
+    
+    // Fallback to native input only when video stream is unavailable or fails
     if (isIOS && nativeInputRef.current) {
       try {
         setIsCapturingNative(true);
@@ -237,21 +243,16 @@ export default function MultiShotCamera({
         setFlash(true);
         setTimeout(() => setFlash(false), 140);
         
-        // Trigger native camera
+        // Trigger native camera as fallback
         nativeInputRef.current.click();
         return; // The onNativeInputChange will handle the rest
       } catch (error) {
+        console.error('[Camera] Native input fallback failed:', error);
         setIsCapturingNative(false);
-        // Fall through to video capture
       }
     }
     
-    try {
-      await captureFromVideo();
-    } finally {
-      setBusy(false);
-      setIsCapturingNative(false);
-    }
+    setBusy(false);
   }
 
   function removeShot(idx: number) {
