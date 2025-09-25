@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Camera, Flashlight, RefreshCcw, Check, X } from 'lucide-react';
+import { Camera, Flashlight, RefreshCcw, Check, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { cameraEnv } from '@/lib/cameraEnv';
 import { processImage } from '@/lib/files';
 import './camera/ios-camera.css';
@@ -34,6 +34,12 @@ export default function MultiShotCamera({
   const [usingEnv, setUsingEnv] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
   const [isCapturingNative, setIsCapturingNative] = useState(false);
+  
+  // Zoom state
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [minZoom, setMinZoom] = useState(1);
+  const [maxZoom, setMaxZoom] = useState(1);
+  const [supportsZoom, setSupportsZoom] = useState(false);
 
   const env = cameraEnv();
   
@@ -101,6 +107,12 @@ export default function MultiShotCamera({
   async function openVideoStream(): Promise<MediaStream> {
     const facingMode = usingEnv ? 'environment' : 'user';
     
+    // Reset zoom state before attempting to open new stream
+    setSupportsZoom(false);
+    setMinZoom(1);
+    setMaxZoom(1);
+    setZoomLevel(1);
+    
     // Progressive constraints - try highest quality first, fall back gracefully
     const constraintSets: MediaStreamConstraints[] = [
       {
@@ -143,6 +155,31 @@ export default function MultiShotCamera({
         const stream = await navigator.mediaDevices.getUserMedia(constraintSets[i]);
         const track = stream.getVideoTracks()[0];
         const settings = track.getSettings();
+        
+        // Check zoom capabilities
+        const capabilities = track.getCapabilities?.();
+        if (capabilities && 'zoom' in capabilities && capabilities.zoom) {
+          const zoomCap = capabilities.zoom as any;
+          if (zoomCap && typeof zoomCap === 'object' && 'min' in zoomCap && 'max' in zoomCap) {
+            setSupportsZoom(true);
+            setMinZoom(zoomCap.min || 1);
+            setMaxZoom(zoomCap.max || 1);
+            setZoomLevel(settings.zoom || 1);
+          } else {
+            // Ensure zoom state is properly reset if capabilities exist but are invalid
+            setSupportsZoom(false);
+            setMinZoom(1);
+            setMaxZoom(1);
+            setZoomLevel(1);
+          }
+        } else {
+          // Ensure zoom state is properly reset if no zoom capabilities
+          setSupportsZoom(false);
+          setMinZoom(1);
+          setMaxZoom(1);
+          setZoomLevel(1);
+        }
+        
         return stream;
       } catch (error) {
         if (i === constraintSets.length - 1) {
@@ -271,6 +308,84 @@ export default function MultiShotCamera({
     const next = !torchOn;
     await track.applyConstraints({ advanced: [{ torch: next }] } as any).catch(()=>{});
     setTorchOn(next);
+  };
+
+  const applyZoom = async (zoom: number) => {
+    if (!supportsZoom) return;
+    
+    const track = streamRef.current?.getVideoTracks()?.[0];
+    if (!track) return;
+    
+    const clampedZoom = Math.max(minZoom, Math.min(maxZoom, zoom));
+    
+    try {
+      await track.applyConstraints({
+        advanced: [{ zoom: clampedZoom } as any]
+      });
+      setZoomLevel(clampedZoom);
+    } catch (error) {
+      console.error('[Camera] Failed to apply zoom:', error);
+    }
+  };
+
+  const zoomIn = () => {
+    const step = (maxZoom - minZoom) / 10; // 10 steps between min and max
+    applyZoom(zoomLevel + step);
+  };
+
+  const zoomOut = () => {
+    const step = (maxZoom - minZoom) / 10; // 10 steps between min and max
+    applyZoom(zoomLevel - step);
+  };
+
+  // Pinch-to-zoom gesture handling for video
+  const zoomGestureRef = useRef<{
+    initialDistance: number;
+    initialZoom: number;
+    isPinching: boolean;
+  }>({
+    initialDistance: 0,
+    initialZoom: 1,
+    isPinching: false
+  });
+
+  const getDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const touch1 = touches[0];
+    const touch2 = touches[1];
+    return Math.sqrt(
+      Math.pow(touch2.clientX - touch1.clientX, 2) +
+      Math.pow(touch2.clientY - touch1.clientY, 2)
+    );
+  };
+
+  const onVideoTouchStart = (e: React.TouchEvent) => {
+    if (!supportsZoom || e.touches.length !== 2) return;
+    
+    e.preventDefault();
+    zoomGestureRef.current.isPinching = true;
+    zoomGestureRef.current.initialDistance = getDistance(e.touches);
+    zoomGestureRef.current.initialZoom = zoomLevel;
+  };
+
+  const onVideoTouchMove = (e: React.TouchEvent) => {
+    if (!supportsZoom || !zoomGestureRef.current.isPinching || e.touches.length !== 2) return;
+    
+    e.preventDefault();
+    const currentDistance = getDistance(e.touches);
+    const { initialDistance, initialZoom } = zoomGestureRef.current;
+    
+    if (initialDistance > 0) {
+      const scale = currentDistance / initialDistance;
+      const newZoom = initialZoom * scale;
+      applyZoom(newZoom);
+    }
+  };
+
+  const onVideoTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length === 0) {
+      zoomGestureRef.current.isPinching = false;
+    }
   };
 
   const flip = () => setUsingEnv(v => !v);
@@ -440,9 +555,34 @@ export default function MultiShotCamera({
           </div>
 
           <div className="iosCam__videoWrap">
-            <video ref={videoRef} className="iosCam__video" muted playsInline />
+            <video 
+              ref={videoRef} 
+              className="iosCam__video" 
+              muted 
+              playsInline
+              onTouchStart={onVideoTouchStart}
+              onTouchMove={onVideoTouchMove}
+              onTouchEnd={onVideoTouchEnd}
+            />
             <div className="iosCam__grid" />
             <div className={`iosCam__flash ${flash ? 'iosCam__flash--show' : ''}`} />
+            
+            {/* Zoom indicator */}
+            {supportsZoom && zoomLevel > minZoom && (
+              <div style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'rgba(0, 0, 0, 0.6)',
+                color: 'white',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: '500'
+              }}>
+                {zoomLevel.toFixed(1)}x
+              </div>
+            )}
           </div>
 
           <div className="iosCam__bottomBar">
@@ -460,6 +600,28 @@ export default function MultiShotCamera({
             <div className="iosCam__controls">
               <button className="iosCam__btn iosCam__btn--ghost" onClick={flip} aria-label="Flip camera"><RefreshCcw size={20}/></button>
               <button className="iosCam__btn iosCam__btn--ghost" onClick={toggleTorch} aria-label="Torch"><Flashlight size={20}/></button>
+              {supportsZoom && (
+                <>
+                  <button 
+                    className="iosCam__btn iosCam__btn--ghost" 
+                    onClick={zoomOut} 
+                    aria-label="Zoom out"
+                    disabled={zoomLevel <= minZoom}
+                    style={{ opacity: zoomLevel <= minZoom ? 0.5 : 1 }}
+                  >
+                    <ZoomOut size={20}/>
+                  </button>
+                  <button 
+                    className="iosCam__btn iosCam__btn--ghost" 
+                    onClick={zoomIn} 
+                    aria-label="Zoom in"
+                    disabled={zoomLevel >= maxZoom}
+                    style={{ opacity: zoomLevel >= maxZoom ? 0.5 : 1 }}
+                  >
+                    <ZoomIn size={20}/>
+                  </button>
+                </>
+              )}
             </div>
           </div>
           
