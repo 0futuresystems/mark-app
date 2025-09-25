@@ -22,7 +22,7 @@ type Props = {
 };
 
 export default function MultiShotCamera({
-  isOpen = true, onDone, onCancel, jpegQuality = 0.85, maxWidth = 1600,
+  isOpen = true, onDone, onCancel, jpegQuality = 0.95, maxWidth = 2560,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -91,14 +91,61 @@ export default function MultiShotCamera({
   }, [usingEnv, env.canUseCamera]);
 
   async function openVideoStream(): Promise<MediaStream> {
-    const constraints: MediaStreamConstraints = {
-      video: {
-        facingMode: usingEnv ? { ideal: 'environment' } : 'user',
-        width: { ideal: 1920 }, height: { ideal: 1080 }
+    const facingMode = usingEnv ? 'environment' : 'user';
+    
+    // Progressive constraints - try highest quality first, fall back gracefully
+    const constraintSets: MediaStreamConstraints[] = [
+      {
+        video: {
+          facingMode: { exact: facingMode },
+          width: { exact: 1920 },
+          height: { exact: 1080 },
+          frameRate: { ideal: 30 }
+        },
+        audio: false
       },
-      audio: false
-    };
-    return await navigator.mediaDevices.getUserMedia(constraints);
+      {
+        video: {
+          facingMode: { exact: facingMode },
+          width: { exact: 1280 },
+          height: { exact: 720 },
+          frameRate: { ideal: 30 }
+        },
+        audio: false
+      },
+      {
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      },
+      {
+        video: {
+          facingMode: { ideal: facingMode }
+        },
+        audio: false
+      }
+    ];
+
+    // Try each constraint set in order
+    for (let i = 0; i < constraintSets.length; i++) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraintSets[i]);
+        const track = stream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        console.log(`[Camera] Constraint set ${i + 1} succeeded:`, settings.width + 'x' + settings.height, '@' + settings.frameRate + 'fps');
+        return stream;
+      } catch (error) {
+        console.log(`[Camera] Constraint set ${i + 1} failed:`, error);
+        if (i === constraintSets.length - 1) {
+          throw error; // Re-throw the last error if all attempts fail
+        }
+      }
+    }
+    
+    throw new Error('All camera constraint attempts failed');
   }
 
   function once(el: HTMLVideoElement, ev: keyof HTMLVideoElementEventMap) {
@@ -132,17 +179,31 @@ export default function MultiShotCamera({
       if (!videoWidth || !videoHeight) return;
       await waitForFrame(v);
 
-      const scale = Math.min(1, maxWidth / videoWidth);
-      const w = Math.round(videoWidth * scale);
-      const h = Math.round(videoHeight * scale);
+      // Calculate target dimensions - cap long edge at maxWidth, preserve aspect ratio
+      const longEdge = Math.max(videoWidth, videoHeight);
+      const scale = Math.min(1, maxWidth / longEdge); // Don't upscale
+      const targetWidth = Math.round(videoWidth * scale);
+      const targetHeight = Math.round(videoHeight * scale);
 
+      // Create canvas with proper dimensions
       const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(v, 0, 0, w, h);
+      
+      // Set canvas size to target resolution (not CSS scaling)
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      
+      // Enable high-quality image smoothing
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      // Draw the video frame
+      ctx.drawImage(v, 0, 0, targetWidth, targetHeight);
 
       const blob: Blob = await new Promise(res => canvas.toBlob(b => res(b!), 'image/jpeg', jpegQuality));
       const file = new File([blob], `shot-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      
+      console.log('[Camera] Captured:', targetWidth + 'x' + targetHeight, 'quality:', jpegQuality, 'size:', file.size);
       setShots(prev => prev.concat(file));
     } finally {
       setBusy(false);
