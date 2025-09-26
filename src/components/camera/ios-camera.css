@@ -2,7 +2,7 @@
 :root {
   --bar-bg: rgba(0,0,0,.34);
   --bar-fg: #fff;
-  --ring-size: 78px;
+  --ring-size: clamp(64px, 18vw, 82px);
   --ring-border: 4px;
   --thumb-size: 44px;
 }
