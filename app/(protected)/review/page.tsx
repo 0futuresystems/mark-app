@@ -1130,20 +1130,20 @@ export default function ReviewPage() {
 
         {/* Rewrite Preview Modal */}
         <Dialog open={!!rewritePreview} onOpenChange={handleCancelRewrite}>
-          <DialogContent className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-gray-900">Voice Note Rewrite Preview</h3>
-                <button
-                  onClick={handleCancelRewrite}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <ArrowLeft className="w-5 h-5 text-gray-600" />
-                </button>
-              </div>
+          <DialogContent className="w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">Voice Note Rewrite Preview</h3>
+              <button
+                onClick={handleCancelRewrite}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
 
-              {rewritePreview && (
-                <div className="space-y-6">
+            {rewritePreview && (
+              <>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
                   {/* What Changed Summary */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <h4 className="font-medium text-blue-900 mb-2">What changed</h4>
@@ -1163,7 +1163,7 @@ export default function ReviewPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <h4 className="font-medium text-gray-900 mb-3">Before</h4>
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 h-64 overflow-y-auto">
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 h-48 overflow-y-auto">
                         <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
                           {rewritePreview.original || 'No description'}
                         </pre>
@@ -1171,32 +1171,32 @@ export default function ReviewPage() {
                     </div>
                     <div>
                       <h4 className="font-medium text-gray-900 mb-3">After</h4>
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 h-64 overflow-y-auto">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 h-48 overflow-y-auto">
                         <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
                           {rewritePreview.rewritten}
                         </pre>
                       </div>
                     </div>
                   </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={handleCancelRewrite}
-                      className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleReplaceDescription}
-                      className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-                    >
-                      Replace Description
-                    </button>
-                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Action Buttons - Fixed at bottom */}
+                <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-white">
+                  <button
+                    onClick={handleCancelRewrite}
+                    className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReplaceDescription}
+                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                  >
+                    Replace Description
+                  </button>
+                </div>
+              </>
+            )}
           </DialogContent>
         </Dialog>
       </div>
