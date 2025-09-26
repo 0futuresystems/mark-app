@@ -51,57 +51,37 @@ export async function getExportableData(auctionId: string): Promise<ExportData> 
   };
 }
 
-export function generateCSVFromData(data: ExportData): string {
-  const { lots, media, auctionName } = data;
-  const csvRows: string[] = [];
-
-  // CSV header
-  csvRows.push('lotId,auctionId,auctionName,lotNumber,status,createdAt,description,mediaType,index,fileName,size,uploaded,remotePath');
-
-  lots.forEach(lot => {
-    const lotMedia = media.filter(m => m.lotId === lot.id);
-    
-    if (lotMedia.length === 0) {
-      // Lot with no media
-      csvRows.push([
-        lot.id,
-        lot.auctionId,
-        auctionName,
-        lot.number,
-        lot.status,
-        lot.createdAt.toISOString(),
-        lot.description ?? '',
-        '',
-        '0',
-        '',
-        '',
-        '',
-        ''
-      ].join(','));
-    } else {
-      // Lot with media
-      lotMedia.forEach(mediaItem => {
-        const fileName = `${lot.number}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}`;
-        csvRows.push([
-          lot.id,
-          lot.auctionId,
-          auctionName,
-          lot.number,
-          lot.status,
-          lot.createdAt.toISOString(),
-          lot.description ?? '',
-          mediaItem.type,
-          mediaItem.index.toString(),
-          fileName,
-          mediaItem.bytesSize?.toString() || '',
-          mediaItem.uploaded ? 'true' : 'false',
-          mediaItem.remotePath || ''
-        ].join(','));
-      });
-    }
+// Helper function to collect entries for a single lot
+function collectLotEntries(lot: Lot, lotMedia: MediaItem[]): Array<{ path: string; media?: MediaItem; text?: string }> {
+  const entries: Array<{ path: string; media?: MediaItem; text?: string }> = [];
+  
+  // Add description.txt for the lot
+  const description = lot.description?.trim() || "No description provided.";
+  entries.push({
+    path: `${lot.number}/description.txt`,
+    text: description
   });
+  
+  // Add media files for the lot
+  lotMedia.forEach(mediaItem => {
+    // Determine file extension based on media type
+    let extension = '';
+    if (mediaItem.type === 'photo') {
+      extension = '.jpg';
+    } else if (mediaItem.type === 'mainVoice' || mediaItem.type === 'dimensionVoice' || mediaItem.type === 'keywordVoice') {
+      extension = '.webm';
+    }
 
-  return csvRows.join('\n');
+    // Create predictable filename (same as before, just moved to lot folder)
+    const fileName = `${lot.number}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}${extension}`;
+    
+    entries.push({
+      path: `${lot.number}/${fileName}`,
+      media: mediaItem
+    });
+  });
+  
+  return entries;
 }
 
 export async function createExportZip(
@@ -113,43 +93,31 @@ export async function createExportZip(
   let currentStep = 0;
   const totalSteps = 2;
 
-  // Step 1: Generate CSV
+  // Step 1: Prepare entries for zip bundle
   onProgress?.({
     current: ++currentStep,
     total: totalSteps,
-    label: 'Generating CSV data...'
+    label: 'Organizing files by lot...'
   });
 
-  const csvContent = generateCSVFromData(data);
+  const allEntries: Array<{ path: string; media?: MediaItem; text?: string }> = [];
 
-  // Step 2: Prepare media entries for zip bundle
+  // Process each lot and collect its entries
+  lots.forEach(lot => {
+    const lotMedia = media.filter(m => m.lotId === lot.id);
+    const lotEntries = collectLotEntries(lot, lotMedia);
+    allEntries.push(...lotEntries);
+  });
+
+  // Step 2: Create ZIP file
   onProgress?.({
     current: ++currentStep,
     total: totalSteps,
-    label: 'Preparing media files...'
+    label: 'Creating ZIP file...'
   });
 
-  const entries = media.map(mediaItem => {
-    // Determine file extension based on media type
-    let extension = '';
-    if (mediaItem.type === 'photo') {
-      extension = '.jpg';
-    } else if (mediaItem.type === 'mainVoice' || mediaItem.type === 'dimensionVoice' || mediaItem.type === 'keywordVoice') {
-      extension = '.webm';
-    }
-
-    // Create predictable filename
-    const lot = lots.find(l => l.id === mediaItem.lotId);
-    const fileName = `${lot?.number || 'unknown'}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}${extension}`;
-    
-    return {
-      path: `media/${fileName}`,
-      media: mediaItem // Pass the media item directly to getMediaBlob
-    };
-  });
-
-  // Use the new zip bundle function
-  const zipResult = await buildZipBundle(entries, csvContent, (progress) => {
+  // Use the updated zip bundle function (no CSV needed)
+  const zipResult = await buildZipBundle(allEntries, (progress) => {
     onProgress?.({
       current: currentStep,
       total: totalSteps,
@@ -162,7 +130,7 @@ export async function createExportZip(
   
   // Log any errors for debugging
   if (zipResult.errors.length > 0) {
-    console.warn(`Share Now: ${zipResult.errors.length} media files skipped:`, zipResult.errors);
+    console.warn(`Share Now: ${zipResult.errors.length} files skipped:`, zipResult.errors);
   }
   
   return new File([zipResult.blob], fileName, { type: 'application/zip' });

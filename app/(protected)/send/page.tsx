@@ -44,8 +44,6 @@ export default function SendPage() {
   // New states for delivery confirmation and fallbacks
   const [lastEmail, setLastEmail] = useState<{id: string | null; at: string; count: number} | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [csvText, setCsvText] = useState<string>('');
-  const [links, setLinks] = useState<string[]>([]);
   const [showToast, setShowToast] = useState<string | null>(null);
   
   // ZIP export states
@@ -189,8 +187,6 @@ export default function SendPage() {
     setSyncSuccess(false);
     setSyncError(null);
     setLastEmail(null);
-    setCsvText('');
-    setLinks([]);
     setZipProgress(0);
     setZipDownloadUrl('');
 
@@ -282,11 +278,11 @@ export default function SendPage() {
         throw new Error(`${failedCount} media items failed to upload`);
       }
 
-      // Step 3: Re-query Dexie for updated media records and generate CSV with presigned URLs
+      // Step 3: Re-query Dexie for updated media records
       setSyncProgress({
         current: pendingMedia.length,
         total: pendingMedia.length,
-        label: 'Generating CSV with media links...',
+        label: 'Preparing ZIP export...',
         errors: []
       });
 
@@ -296,25 +292,6 @@ export default function SendPage() {
         .anyOf(lots.map(lot => lot.id))
         .and(media => media.objectKey != null)
         .toArray();
-
-      const csvRows: string[] = [];
-      csvRows.push('Lot ID,Media ID,Type,Object Key,Download URL');
-      const generatedLinks: string[] = [];
-
-      for (const media of uploadedMedia) {
-        try {
-          const presignedUrl = await presignGetUrl(media.objectKey!, 7 * 24 * 60 * 60); // 7 days
-          csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},${presignedUrl}`);
-          generatedLinks.push(presignedUrl);
-        } catch (error) {
-          console.error(`Failed to generate presigned URL for ${media.id}:`, error);
-          csvRows.push(`${media.lotId},${media.id},${media.type},${media.objectKey},ERROR`);
-        }
-      }
-
-      const csvContent = csvRows.join('\n');
-      setCsvText(csvContent);
-      setLinks(generatedLinks);
 
       // Step 4: Create and upload ZIP
       setSyncProgress({
@@ -331,9 +308,8 @@ export default function SendPage() {
       setSyncErrors([]);
       const { zipUrl, errors: zipErrors } = await createAndUploadZip({ 
         auctionId: currentAuctionId, 
-        lotMetas: lots, 
-        uploadedMedia: uploadedMedia, 
-        csvText: csvContent,
+        lots: lots, 
+        uploadedMedia: uploadedMedia,
         onProgress: setZipProgress 
       });
       
@@ -354,10 +330,9 @@ export default function SendPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          subject: `Mark App Export (ZIP) - ${auctionName}`,
-          summary: `Export from ${auctionName} with ${uploadedMedia.length} media items - ZIP download link included`,
+          subject: `Mark App Export - ${auctionName}`,
+          summary: `Export from ${auctionName} with ${uploadedMedia.length} media items organized by lot`,
           auctionId: currentAuctionId,
-          // csv: undefined,      // <-- ensure we do NOT send as attachment
           links: [zipUrl]        // <-- the single ZIP link
         }),
       });
@@ -409,96 +384,57 @@ export default function SendPage() {
   };
 
   // Fallback action functions
-  const handleDownloadCSV = () => {
-    if (csvText) {
-      downloadTextFile('mark-app-export.csv', csvText);
-    }
-  };
 
-  const handleCopyLinks = async () => {
-    if (links.length > 0) {
-      try {
-        await copyToClipboard(links.join('\n'));
-        showToastMessage(`Copied ${links.length} links`);
-      } catch (error) {
-        showToastMessage('Failed to copy links');
+  // Helper function to collect entries for a single lot (same as in exportLocal.ts)
+  function collectLotEntries(lot: Lot, lotMedia: MediaItem[]): Array<{ path: string; media?: MediaItem; text?: string }> {
+    const entries: Array<{ path: string; media?: MediaItem; text?: string }> = [];
+    
+    // Add description.txt for the lot
+    const description = lot.description?.trim() || "No description provided.";
+    entries.push({
+      path: `${lot.number}/description.txt`,
+      text: description
+    });
+    
+    // Add media files for the lot
+    lotMedia.forEach(mediaItem => {
+      // Determine file extension based on media type
+      let extension = '';
+      if (mediaItem.type === 'photo') {
+        extension = '.jpg';
+      } else if (mediaItem.type === 'mainVoice' || mediaItem.type === 'dimensionVoice' || mediaItem.type === 'keywordVoice') {
+        extension = '.webm';
       }
-    }
-  };
 
-  const handleResendLinksOnly = async () => {
-    if (!currentAuctionId || links.length === 0) return;
-
-    try {
-      const auction = await db.auctions.get(currentAuctionId);
-      const auctionName = auction?.name || 'Unknown';
-
-      const emailResponse = await fetch('/api/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          subject: `Mark App Export - ${auctionName} (links only)`, 
-          summary: `Export from ${auctionName} with ${links.length} media links (no attachment)`,
-          auctionId: currentAuctionId, 
-          links 
-        })
-      });
-
-      const emailResult = await emailResponse.json();
+      // Create predictable filename (same as before, just moved to lot folder)
+      const fileName = `${lot.number}_${mediaItem.type}_${mediaItem.index.toString().padStart(2, '0')}${extension}`;
       
-      if (!emailResponse.ok || emailResult?.error) {
-        setSyncError(`Email (links-only) failed: ${emailResult?.error || emailResponse.statusText}`);
-      } else {
-        setSyncError(null);
-        setLastEmail({ 
-          id: emailResult?.id ?? null, 
-          at: new Date().toISOString(), 
-          count: links.length 
-        });
-        showToastMessage('Links-only email sent successfully');
-      }
-    } catch (error) {
-      setSyncError(`Failed to resend email: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
+      entries.push({
+        path: `${lot.number}/${fileName}`,
+        media: mediaItem
+      });
+    });
+    
+    return entries;
+  }
 
   // ZIP export function
-  async function createAndUploadZip({ auctionId, lotMetas, uploadedMedia, csvText, onProgress }:{
+  async function createAndUploadZip({ auctionId, lots, uploadedMedia, onProgress }:{
     auctionId: string,
-    lotMetas: Array<{ id: string; title?: string }>,
-    uploadedMedia: Array<{ id: string; lotId: string; index?: number; filename?: string; mime: string }>,
-    csvText: string,
+    lots: Lot[],
+    uploadedMedia: MediaItem[],
     onProgress?: (p:number)=>void
   }) {
-    // Build list of { path, media } from local IndexedDB media items
-    // Keep consistent names: media/<lotId>_<index|id>.<ext>
-    const entries = []
-    const skippedMedia = []
-    
-    for (const m of uploadedMedia) {
-      try {
-        // Try to get the blob to verify it exists
-        const blob = await getMediaBlob(m.id)
-        if (!blob) {
-          console.warn(`Skipping media ${m.id}: blob not found`)
-          skippedMedia.push(m.id)
-          continue
-        }
-        
-        const ext = (m.mime?.includes('jpeg') ? 'jpg' : (m.mime?.split('/')[1] || 'bin'))
-        const name = m.filename || `${m.lotId}_${(m.index ?? 0)}.${ext}`
-        entries.push({ path: `media/${name}`, media: m })
-      } catch (error) {
-        console.warn(`Skipping media ${m.id}: error accessing blob`, error)
-        skippedMedia.push(m.id)
-      }
-    }
-    
-    if (skippedMedia.length > 0) {
-      console.warn(`Skipped ${skippedMedia.length} media items due to missing blobs:`, skippedMedia)
-    }
+    const allEntries: Array<{ path: string; media?: MediaItem; text?: string }> = [];
 
-    const { blob: zipBlob, errors } = await buildZipBundle(entries, csvText, onProgress)
+    // Process each lot and collect its entries (media + description.txt)
+    lots.forEach(lot => {
+      const lotMedia = uploadedMedia.filter(m => m.lotId === lot.id);
+      const lotEntries = collectLotEntries(lot, lotMedia);
+      allEntries.push(...lotEntries);
+    });
+
+    const { blob: zipBlob, errors } = await buildZipBundle(allEntries, onProgress)
     const ts = new Date().toISOString().replace(/[:.]/g,'-')
     const objectKey = `exports/${auctionId}/export-${auctionId}-${ts}.zip`
     await uploadZipToR2(objectKey, zipBlob)
@@ -730,7 +666,7 @@ export default function SendPage() {
                 style={{ width: `${zipProgress}%` }}
               />
             </div>
-            <p className="mt-2 text-sm text-purple-700">Building ZIP with CSV and media files...</p>
+            <p className="mt-2 text-sm text-purple-700">Organizing files by lot folder...</p>
           </div>
         )}
 
@@ -759,7 +695,7 @@ export default function SendPage() {
             </div>
                 <div className="flex-1">
                   <h2 className="text-xl font-semibold text-gray-900 mb-2">Share Now (ZIP for AirDrop)</h2>
-                  <p className="text-gray-600 mb-6">Create a ZIP with photos + CSV from this device.</p>
+                  <p className="text-gray-600 mb-6">Create a ZIP with lots organized in folders from this device.</p>
               <button
                     onClick={handleShareNow}
                     disabled={sharing}
@@ -783,7 +719,7 @@ export default function SendPage() {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-xl font-semibold text-gray-900 mb-2">Sync When Home</h2>
-                  <p className="text-gray-600 mb-6">Upload photos and email the CSV to the office.</p>
+                  <p className="text-gray-600 mb-6">Upload photos and email the ZIP file to the office.</p>
             <button
                     onClick={handleSyncWhenHome}
                     disabled={syncing}
@@ -806,7 +742,7 @@ export default function SendPage() {
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mt-8">
             <h3 className="font-semibold text-purple-900 mb-4">ZIP Export Ready</h3>
             <p className="text-purple-700 text-sm mb-4">
-              Your complete export (CSV + all media) is ready for download.
+              Your complete export with lots organized by folder is ready for download.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
