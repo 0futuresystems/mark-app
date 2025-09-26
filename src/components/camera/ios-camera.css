@@ -34,13 +34,15 @@
   backdrop-filter: blur(20px);
 }
 .iosCam__topBar { padding-top: calc(env(safe-area-inset-top) + 8px); }
-.iosCam__bottomBar {
-  padding-top: 20px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
+.iosCam__bottomBar { 
+  padding: 20px 20px calc(env(safe-area-inset-bottom) + 24px) 20px;
   justify-content: center;
   position: relative;
+  min-height: 120px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  min-height: calc(var(--ring-size) + 40px);
+  gap: 16px;
 }
 .iosCam__btn {
   display: inline-flex; align-items: center; gap: 8px;
@@ -80,10 +82,9 @@
     0 0 0 1px rgba(0,0,0,.15) inset;
 }
 .iosCam__leftControls {
-  position: absolute;
-  left: 20px;
-  top: 50%;
-  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .iosCam__centerControls {
@@ -93,10 +94,9 @@
 }
 
 .iosCam__rightControls {
-  position: absolute;
-  right: 20px;
-  top: 50%;
-  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .iosCam__thumb {
@@ -105,6 +105,8 @@
   border: 2px solid rgba(255,255,255,.3); 
   background: rgba(255,255,255,.1);
   transition: all 0.2s ease;
+  min-height: var(--thumb-size);
+  min-width: var(--thumb-size);
 }
 
 .iosCam__thumb:active {
@@ -121,12 +123,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  padding: 8px 0;
 }
 
 .iosCam__iconBtn {
-  width: 40px; height: 40px;
-  border-radius: 20px;
+  width: 44px; height: 44px;
+  border-radius: 22px;
   border: none;
   background: rgba(255,255,255,.15);
   color: white;
@@ -136,6 +139,8 @@
   transition: all 0.2s ease;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .iosCam__iconBtn:active {
@@ -146,16 +151,16 @@
 .iosCam__zoomControls {
   display: flex;
   background: rgba(255,255,255,.15);
-  border-radius: 16px;
-  padding: 4px;
-  gap: 2px;
+  border-radius: 20px;
+  padding: 6px;
+  gap: 4px;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
 
 .iosCam__zoomBtn {
-  width: 28px; height: 28px;
-  border-radius: 12px;
+  width: 32px; height: 32px;
+  border-radius: 16px;
   border: none;
   background: transparent;
   color: white;
@@ -163,6 +168,8 @@
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  min-height: 32px;
+  min-width: 32px;
 }
 
 .iosCam__zoomBtn:not(:disabled):active {
