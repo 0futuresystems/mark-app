@@ -157,19 +157,10 @@ export default function LotThumbnail({
 
   return (
     <div className={`${config.container} relative overflow-hidden rounded-xl ${className} group bg-gray-100`}>
-      {/* Only render img if we have valid URL AND show skeleton until image actually loads */}
-      {!imageLoaded && (
-        <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
-          <div className="w-4 h-4 bg-gray-400 rounded animate-pulse"></div>
-        </div>
-      )}
-      
       <img
         src={imageUrl}
         alt={`Photo ${mediaItem.index}`}
-        className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 ${
-          imageLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
+        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
         onLoad={() => {
           console.log('[LotThumbnail] IMAGE SUCCESSFULLY LOADED:', mediaItem.id, imageUrl);
           setImageLoaded(true);
@@ -181,7 +172,7 @@ export default function LotThumbnail({
         loading="lazy"
       />
       
-      {showOverlay && imageLoaded && (
+      {showOverlay && (
         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-center justify-center">
           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <ImageIcon className="w-6 h-6 text-white drop-shadow-lg" />
