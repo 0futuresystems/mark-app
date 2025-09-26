@@ -13,7 +13,7 @@ const emailSchema = z.object({
   })).optional(),
 });
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
+// Resend client will be instantiated in POST function
 
 async function asBase64(c: any) {
   if (typeof c === 'string') return c.startsWith('data:') ? c.split(',')[1] : c; // if already base64
@@ -233,6 +233,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Attachments too large', code: 'ATTACHMENT_TOO_LARGE', maxMb: 30 }, { status: 413 });
     }
 
+    const resend = new Resend(process.env.RESEND_API_KEY!);
     const { data, error } = await resend.emails.send({
       from, 
       to, 
