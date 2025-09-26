@@ -85,8 +85,10 @@ function SortablePhotoItem({
         />
       </div>
       
-      {/* Enhanced overlay with controls - always visible for mobile with pointer events fix */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-100 transition-all duration-300 rounded-xl flex flex-col justify-between p-2 pointer-events-none">
+      {/* Enhanced overlay with controls - lighten default gradient but keep full visibility on interaction */}
+      <div
+        className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent group-hover:from-black/70 group-hover:via-black/40 group-focus-within:from-black/70 group-focus-within:via-black/40 transition-all duration-300 rounded-xl flex flex-col justify-between p-2 pointer-events-none"
+      >
         {/* Top controls - restore pointer events for buttons */}
         <div className="flex justify-end space-x-1 pointer-events-auto">
           <button 
