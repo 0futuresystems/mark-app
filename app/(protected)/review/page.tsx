@@ -240,7 +240,7 @@ export default function ReviewPage() {
         existingQueue.push(queuedJob);
         localStorage.setItem('queuedRewriteJobs', JSON.stringify(existingQueue));
         
-        showToast('Voice note rewrite queued for when you\'re back online', 'info');
+        showToast('Voice note rewrite queued for when you\'re back online', 'success');
         return;
       }
 
@@ -590,6 +590,7 @@ export default function ReviewPage() {
       navigator.vibrate(30);
     }
     
+    if (!selectedLot) return;
     const photos = allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index);
     const currentIndex = photos.findIndex(p => p.id === mediaId);
     

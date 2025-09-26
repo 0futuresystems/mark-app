@@ -49,6 +49,7 @@ export default function LightboxCarousel({
       try {
         console.log('[LightboxCarousel] Loading blob for:', current.id);
         const blob = await getMediaBlob(current.id);
+        if (!blob) throw new Error('Blob not found');
         console.log('[LightboxCarousel] Got blob:', blob.size, 'bytes');
         return blob;
       } catch (err) {

@@ -41,10 +41,13 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
     isBlob: blobRecord.data instanceof Blob,
     isArrayBuffer: blobRecord.data instanceof ArrayBuffer,
     isUint8Array: blobRecord.data instanceof Uint8Array,
-    dataSize: blobRecord.data instanceof Blob ? blobRecord.data.size : 
-              (blobRecord.data as any)?.byteLength ||
-              (blobRecord.data as any)?.length ||
-              typeof blobRecord.data === 'string' ? blobRecord.data.length : 'unknown'
+    dataSize: (() => {
+              if (blobRecord.data instanceof Blob) return blobRecord.data.size;
+              if ((blobRecord.data as any)?.byteLength) return (blobRecord.data as any).byteLength;
+              if ((blobRecord.data as any)?.length) return (blobRecord.data as any).length;
+              if (typeof blobRecord.data === 'string') return (blobRecord.data as string).length;
+              return 'unknown';
+            })()
   });
   
   // Ensure we return a proper Blob object with arrayBuffer() method
@@ -59,7 +62,7 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
     finalBlob = new Blob([data as ArrayBuffer], { type: 'image/jpeg' }); // Add default MIME type
   } else if (data instanceof Uint8Array) {
     console.log('[getMediaBlob] Converting Uint8Array to Blob:', data.length, 'bytes');
-    finalBlob = new Blob([data.buffer], { type: 'image/jpeg' }); // Add default MIME type
+    finalBlob = new Blob([data.buffer as ArrayBuffer], { type: 'image/jpeg' }); // Add default MIME type
   } else if (typeof data === 'string') {
     console.log('[getMediaBlob] Converting base64 string to Blob, length:', data.length);
     try {
