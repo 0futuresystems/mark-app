@@ -18,6 +18,7 @@ import PhotoGrid from '../../../src/components/PhotoGrid';
 import { ArrowLeft, Trash2, Plus, CheckCircle, AlertCircle, Sparkles, Mic, Play } from 'lucide-react';
 import { useToast } from '../../../src/contexts/ToastContext';
 import { Dialog, DialogContent } from '../../../src/components/Dialog';
+import { QueuedRewriteJob } from '../../../src/types';
 
 export default function ReviewPage() {
   const router = useRouter();
@@ -225,8 +226,21 @@ export default function ReviewPage() {
 
       // Check if we're online for API calls
       if (!navigator.onLine) {
-        // TODO: Implement offline queuing
-        showToast('This feature requires an internet connection', 'error');
+        // Queue the rewrite job for when we're online
+        const queuedJob: QueuedRewriteJob = {
+          type: 'rewriteDescription',
+          lotId: selectedLot.id,
+          voiceMediaId: mainVoice.id,
+          originalDescription: description || '',
+          createdAt: new Date().toISOString(),
+        };
+        
+        // Store in localStorage for persistence
+        const existingQueue = JSON.parse(localStorage.getItem('queuedRewriteJobs') || '[]');
+        existingQueue.push(queuedJob);
+        localStorage.setItem('queuedRewriteJobs', JSON.stringify(existingQueue));
+        
+        showToast('Voice note rewrite queued for when you\'re back online', 'info');
         return;
       }
 
@@ -315,6 +329,165 @@ export default function ReviewPage() {
   const handleCancelRewrite = () => {
     setRewritePreview(null);
   };
+
+  const processQueuedRewriteJobs = async () => {
+    if (!navigator.onLine) return;
+    
+    const queuedJobs = JSON.parse(localStorage.getItem('queuedRewriteJobs') || '[]') as QueuedRewriteJob[];
+    if (queuedJobs.length === 0) return;
+
+    const processedJobs: string[] = [];
+    const failedJobs: string[] = [];
+
+    for (let i = 0; i < queuedJobs.length; i++) {
+      const job = queuedJobs[i];
+      const jobId = `${job.lotId}-${job.createdAt}`;
+      
+      try {
+        // Find the lot and voice note
+        const lot = await db.lots.get(job.lotId);
+        const voiceMedia = await db.media.get(job.voiceMediaId);
+        
+        if (!lot || !voiceMedia) {
+          console.warn('Queued job references missing lot or voice note:', job);
+          failedJobs.push(jobId);
+          continue;
+        }
+
+        // Process the job using the same logic as handleRewriteFromVoice
+        const blob = await getMediaBlob(job.voiceMediaId);
+        if (!blob) {
+          failedJobs.push(jobId);
+          continue;
+        }
+
+        // Transcribe and rewrite
+        const formData = new FormData();
+        formData.append('file', blob, 'voice.webm');
+        
+        const transcribeResponse = await fetch('/api/transcribe', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!transcribeResponse.ok) {
+          failedJobs.push(jobId);
+          continue;
+        }
+
+        const { transcript } = await transcribeResponse.json();
+        if (!transcript) {
+          failedJobs.push(jobId);
+          continue;
+        }
+
+        const rewriteResponse = await fetch('/api/rewrite-description', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            originalDescription: job.originalDescription,
+            transcript: transcript,
+            lotMeta: { lotNumber: lot.number },
+          }),
+        });
+
+        if (!rewriteResponse.ok) {
+          failedJobs.push(jobId);
+          continue;
+        }
+
+        const { rewrittenDescription, changeSummary } = await rewriteResponse.json();
+
+        // CRITICAL FIX: Actually persist the rewritten description and metadata
+        const updatedLot = {
+          description: rewrittenDescription,
+          descriptionSource: 'photos+voice' as const,
+          voiceTranscript: transcript,
+          descriptionUpdatedAt: new Date().toISOString(),
+        };
+
+        await db.lots.update(job.lotId, updatedLot);
+
+        // Update local state if this is the currently selected lot
+        if (selectedLot && selectedLot.id === job.lotId) {
+          setDescription(rewrittenDescription);
+          setPreviousDescription(job.originalDescription);
+          
+          // Show preview modal to let user know what happened
+          setRewritePreview({
+            original: job.originalDescription,
+            rewritten: rewrittenDescription,
+            changeSummary: `${changeSummary} (processed from queue when back online)`,
+            transcript: transcript,
+          });
+        }
+
+        processedJobs.push(jobId);
+        showToast(`Voice note rewrite applied to Lot #${lot.number}!`, 'success');
+        
+      } catch (error) {
+        console.error('Error processing queued rewrite job:', error);
+        failedJobs.push(jobId);
+      }
+    }
+
+    // Only remove successfully processed jobs from the queue
+    if (processedJobs.length > 0) {
+      const remainingJobs = queuedJobs.filter((job, index) => {
+        const jobId = `${job.lotId}-${job.createdAt}`;
+        return !processedJobs.includes(jobId);
+      });
+      
+      localStorage.setItem('queuedRewriteJobs', JSON.stringify(remainingJobs));
+      
+      // CRITICAL FIX: Await the lots reload to ensure UI reflects changes
+      await loadLots();
+      
+      // Also refresh the selected lot if it was one of the processed jobs
+      if (selectedLot) {
+        const selectedLotUpdated = processedJobs.some(jobId => 
+          queuedJobs.find(job => `${job.lotId}-${job.createdAt}` === jobId)?.lotId === selectedLot.id
+        );
+        
+        if (selectedLotUpdated) {
+          // Reload the selected lot's data
+          const updatedLot = await db.lots.get(selectedLot.id);
+          if (updatedLot) {
+            setDescription(updatedLot.description || '');
+            // Update the selectedLot reference to trigger re-renders
+            setSelectedLot(updatedLot);
+          }
+          
+          // Reload media for the selected lot
+          loadLotMedia(selectedLot.id);
+        }
+      }
+    }
+
+    // Show error for failed jobs
+    if (failedJobs.length > 0) {
+      showToast(`${failedJobs.length} queued voice note(s) failed to process`, 'error');
+    }
+  };
+
+  // Process queued jobs when component mounts and when coming online
+  useEffect(() => {
+    processQueuedRewriteJobs();
+    
+    const handleOnline = () => {
+      processQueuedRewriteJobs();
+    };
+    
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
+
+  // Also process queue when selectedLot changes
+  useEffect(() => {
+    if (selectedLot) {
+      processQueuedRewriteJobs();
+    }
+  }, [selectedLot]);
 
   // Helper functions for completeness checking
   const getLotMedia = (lotId: string) => {

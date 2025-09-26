@@ -47,3 +47,11 @@ export interface MediaBlob {
   data: Blob; // Store as Blob for better memory management
 }
 
+export interface QueuedRewriteJob {
+  type: 'rewriteDescription';
+  lotId: string;
+  voiceMediaId: string;
+  originalDescription: string;
+  createdAt: string;
+}
+
