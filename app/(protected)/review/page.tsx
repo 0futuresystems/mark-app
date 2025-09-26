@@ -15,8 +15,9 @@ import CameraCapture from '../../../src/components/CameraCapture';
 import LotThumbnail from '../../../src/components/LotThumbnail';
 import LightboxCarousel from '../../../src/components/LightboxCarousel';
 import PhotoGrid from '../../../src/components/PhotoGrid';
-import { ArrowLeft, Trash2, Plus, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, CheckCircle, AlertCircle, Sparkles, Mic, Play } from 'lucide-react';
 import { useToast } from '../../../src/contexts/ToastContext';
+import { Dialog, DialogContent } from '../../../src/components/Dialog';
 
 export default function ReviewPage() {
   const router = useRouter();
@@ -32,6 +33,13 @@ export default function ReviewPage() {
   const [description, setDescription] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [previousDescription, setPreviousDescription] = useState('');
+  const [isRewritingFromVoice, setIsRewritingFromVoice] = useState(false);
+  const [rewritePreview, setRewritePreview] = useState<{
+    original: string;
+    rewritten: string;
+    changeSummary: string;
+    transcript: string;
+  } | null>(null);
 
   const loadLots = useCallback(async () => {
     if (!currentAuctionId) return;
@@ -194,6 +202,118 @@ export default function ReviewPage() {
       setPreviousDescription('');
       showToast('Description restored', 'success');
     }
+  };
+
+  const handleRewriteFromVoice = async () => {
+    if (!selectedLot || isRewritingFromVoice) return;
+
+    // Find the main voice note
+    const mainVoice = lotMedia.find(m => m.type === 'mainVoice');
+    if (!mainVoice) {
+      showToast('Main Voice Note not found', 'error');
+      return;
+    }
+
+    setIsRewritingFromVoice(true);
+
+    try {
+      // Get the voice note blob
+      const blob = await getMediaBlob(mainVoice.id);
+      if (!blob) {
+        throw new Error('Could not load voice note');
+      }
+
+      // Check if we're online for API calls
+      if (!navigator.onLine) {
+        // TODO: Implement offline queuing
+        showToast('This feature requires an internet connection', 'error');
+        return;
+      }
+
+      // Transcribe the audio
+      const formData = new FormData();
+      formData.append('file', blob, 'voice.webm');
+      
+      const transcribeResponse = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!transcribeResponse.ok) {
+        const errorData = await transcribeResponse.json();
+        throw new Error(errorData.error || 'Transcription failed');
+      }
+
+      const transcribeResult = await transcribeResponse.json();
+      const { transcript } = transcribeResult;
+
+      if (!transcript || transcript.trim().length === 0) {
+        throw new Error("Couldn't hear that clearly—try again");
+      }
+
+      // Rewrite the description
+      const rewriteResponse = await fetch('/api/rewrite-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          originalDescription: description || '',
+          transcript: transcript,
+          lotMeta: {
+            lotNumber: selectedLot.number,
+          },
+        }),
+      });
+
+      if (!rewriteResponse.ok) {
+        const errorData = await rewriteResponse.json();
+        throw new Error(errorData.error || 'Rewrite failed');
+      }
+
+      const rewriteResult = await rewriteResponse.json();
+
+      // Show preview modal
+      setRewritePreview({
+        original: description || '',
+        rewritten: rewriteResult.rewrittenDescription,
+        changeSummary: rewriteResult.changeSummary,
+        transcript: transcript,
+      });
+
+    } catch (error) {
+      console.error('Error rewriting from voice:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to rewrite description', 'error');
+    } finally {
+      setIsRewritingFromVoice(false);
+    }
+  };
+
+  const handleReplaceDescription = async () => {
+    if (!rewritePreview || !selectedLot) return;
+
+    try {
+      const updatedLot = {
+        description: rewritePreview.rewritten,
+        descriptionSource: 'photos+voice' as const,
+        voiceTranscript: rewritePreview.transcript,
+        descriptionUpdatedAt: new Date().toISOString(),
+      };
+
+      await db.lots.update(selectedLot.id, updatedLot);
+      setDescription(rewritePreview.rewritten);
+      setPreviousDescription(rewritePreview.original);
+      setRewritePreview(null);
+      
+      showToast('Description updated with voice note!', 'success');
+    } catch (error) {
+      console.error('Error updating description:', error);
+      showToast('Failed to update description', 'error');
+    }
+  };
+
+  const handleCancelRewrite = () => {
+    setRewritePreview(null);
   };
 
   // Helper functions for completeness checking
@@ -694,6 +814,24 @@ export default function ReviewPage() {
                       </>
                     )}
                   </button>
+                  <button
+                    onClick={handleRewriteFromVoice}
+                    disabled={isRewritingFromVoice || !lotMedia.find(m => m.type === 'mainVoice')}
+                    className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                    title={!lotMedia.find(m => m.type === 'mainVoice') ? "Record a main voice note first" : "Use my voice note to fix this"}
+                  >
+                    {isRewritingFromVoice ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Listening...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="w-4 h-4" />
+                        <span>Use my voice note to fix this</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
               
@@ -816,6 +954,78 @@ export default function ReviewPage() {
             onDelete={handlePhotoDelete}
           />
         )}
+
+        {/* Rewrite Preview Modal */}
+        <Dialog open={!!rewritePreview} onOpenChange={handleCancelRewrite}>
+          <DialogContent className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-semibold text-gray-900">Voice Note Rewrite Preview</h3>
+                <button
+                  onClick={handleCancelRewrite}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              {rewritePreview && (
+                <div className="space-y-6">
+                  {/* What Changed Summary */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-medium text-blue-900 mb-2">What changed</h4>
+                    <p className="text-blue-800 text-sm whitespace-pre-line">{rewritePreview.changeSummary}</p>
+                  </div>
+
+                  {/* Play Voice Note */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Play className="w-4 h-4 text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">Voice transcript:</span>
+                    </div>
+                    <p className="text-sm text-gray-600 italic">"{rewritePreview.transcript}"</p>
+                  </div>
+
+                  {/* Before and After */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3">Before</h4>
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 h-64 overflow-y-auto">
+                        <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                          {rewritePreview.original || 'No description'}
+                        </pre>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-3">After</h4>
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 h-64 overflow-y-auto">
+                        <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                          {rewritePreview.rewritten}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={handleCancelRewrite}
+                      className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleReplaceDescription}
+                      className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                    >
+                      Replace Description
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
