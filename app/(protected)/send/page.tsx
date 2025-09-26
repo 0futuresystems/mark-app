@@ -797,44 +797,6 @@ export default function SendPage() {
           </div>
         )}
 
-        {/* Fallback Actions Panel */}
-        {(csvText || links.length > 0) && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-8">
-            <h3 className="font-semibold text-gray-900 mb-4">Sync Complete - Fallback Actions</h3>
-            <p className="text-gray-600 text-sm mb-4">
-              Download your data locally or resend the email with different options.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {csvText && (
-                <button
-                  onClick={handleDownloadCSV}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <Download className="w-4 h-4" />
-                  Download CSV
-                </button>
-              )}
-              {links.length > 0 && (
-                <>
-                  <button
-                    onClick={handleCopyLinks}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
-                  >
-                    <Copy className="w-4 h-4" />
-                    Copy Links
-                  </button>
-                  <button
-                    onClick={handleResendLinksOnly}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
-                  >
-                    <Mail className="w-4 h-4" />
-                    Resend Email (Links Only)
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Error Display */}
         {syncResult && syncResult.errors.length > 0 && (
