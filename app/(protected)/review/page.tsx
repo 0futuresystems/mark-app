@@ -177,7 +177,7 @@ export default function ReviewPage() {
       
       if (result.success) {
         const newDescription = result.data.description_bullets.map((bullet: string) => `• ${bullet}`).join('\n');
-        const finalDescription = `${result.data.title}\n\n${newDescription}\n\nKeywords: ${result.data.keywords}\n\n${result.data.caution}`;
+        const finalDescription = `${result.data.title}\n\n${newDescription}\n\nKeywords: ${result.data.keywords}`;
         
         setDescription(finalDescription);
         await db.lots.update(selectedLot.id, { description: finalDescription });

@@ -268,8 +268,7 @@ export async function POST(request: NextRequest) {
     if (
       !parsedResponse.title ||
       !parsedResponse.description_bullets ||
-      !parsedResponse.keywords ||
-      !parsedResponse.caution
+      !parsedResponse.keywords
     ) {
       console.error("Invalid response structure:", parsedResponse);
       throw new Error("AI response missing required fields");
@@ -279,8 +278,7 @@ export async function POST(request: NextRequest) {
     if (
       typeof parsedResponse.title !== "string" ||
       !Array.isArray(parsedResponse.description_bullets) ||
-      typeof parsedResponse.keywords !== "string" ||
-      typeof parsedResponse.caution !== "string"
+      typeof parsedResponse.keywords !== "string"
     ) {
       throw new Error("AI response has incorrect field types");
     }
