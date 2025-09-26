@@ -23,15 +23,12 @@ export default function LotThumbnail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [loadStartTime, setLoadStartTime] = useState<number>(0);
 
   useEffect(() => {
     let mounted = true;
     let objectUrl: string | null = null;
 
     const loadAndValidateImage = async () => {
-      const startTime = performance.now();
-      setLoadStartTime(startTime);
       try {
         console.log('[LotThumbnail] STARTING load for:', mediaItem.id);
         setLoading(true);
@@ -39,9 +36,7 @@ export default function LotThumbnail({
         setImageLoaded(false);
         
         // Get blob data directly from IndexedDB
-        const blobFetchStart = performance.now();
         const blobRecord = await db.blobs.get(mediaItem.id);
-        const blobFetchTime = performance.now() - blobFetchStart;
         
         console.log('[LotThumbnail] BLOB RECORD:', {
           id: mediaItem.id,
@@ -96,21 +91,13 @@ export default function LotThumbnail({
         }
 
         // Only create object URL if we have valid image data
-        const urlCreateStart = performance.now();
         objectUrl = URL.createObjectURL(blob);
-        const urlCreateTime = performance.now() - urlCreateStart;
-        const totalTime = performance.now() - loadStartTime;
         
-        console.log('[LotThumbnail] TIMING & OBJECT URL CREATED:', {
+        console.log('[LotThumbnail] OBJECT URL CREATED:', {
           id: mediaItem.id,
           url: objectUrl,
           urlLength: objectUrl.length,
-          startsWithBlob: objectUrl.startsWith('blob:'),
-          timings: {
-            blobFetch: `${blobFetchTime.toFixed(2)}ms`,
-            urlCreate: `${urlCreateTime.toFixed(2)}ms`,
-            total: `${totalTime.toFixed(2)}ms`
-          }
+          startsWithBlob: objectUrl.startsWith('blob:')
         });
         
         if (mounted) {
@@ -175,12 +162,7 @@ export default function LotThumbnail({
         alt={`Photo ${mediaItem.index}`}
         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
         onLoad={() => {
-          const loadCompleteTime = performance.now() - loadStartTime;
-          console.log('[LotThumbnail] IMAGE SUCCESSFULLY LOADED:', {
-            id: mediaItem.id,
-            url: imageUrl,
-            totalLoadTime: `${loadCompleteTime.toFixed(2)}ms`
-          });
+          console.log('[LotThumbnail] IMAGE SUCCESSFULLY LOADED:', mediaItem.id, imageUrl);
           setImageLoaded(true);
         }}
         onError={(e) => {

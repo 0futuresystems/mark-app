@@ -1,7 +1,7 @@
 'use client';
 import { Dialog, DialogContent } from './Dialog';
 import useEmblaCarousel from 'embla-carousel-react';
-import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useObjectUrl } from '../hooks/useObjectUrl';
 import { getMediaBlob } from '../lib/blobStore';
 import { X, ChevronLeft, ChevronRight, Trash2, ZoomIn, ZoomOut, RotateCw, Info, Download } from 'lucide-react';
@@ -27,10 +27,6 @@ export default function LightboxCarousel({
   const [zoom, setZoom] = useState(1);
   const [showInfo, setShowInfo] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  
-  // Blob cache for performance - keep blobs in memory to avoid repeated IndexedDB hits
-  const blobCacheRef = useRef<Map<string, Blob>>(new Map());
-  const preloadedUrlsRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (embla) embla.reInit({ startIndex });
@@ -47,42 +43,20 @@ export default function LightboxCarousel({
 
   const current = items[index];
 
-  // Optimized blob loader with caching
-  const getBlobWithCache = useCallback(async (id: string): Promise<Blob | null> => {
-    const startTime = performance.now();
-    
-    // Check cache first
-    if (blobCacheRef.current.has(id)) {
-      const cachedBlob = blobCacheRef.current.get(id)!;
-      console.log('[LightboxCarousel] Using cached blob for:', id, `(${(performance.now() - startTime).toFixed(2)}ms)`);
-      return cachedBlob;
-    }
-    
-    try {
-      console.log('[LightboxCarousel] Loading blob from IndexedDB for:', id);
-      const blob = await getMediaBlob(id);
-      if (!blob) {
-        throw new Error(`Failed to get blob for ${id}`);
-      }
-      
-      // Cache the blob for future use
-      blobCacheRef.current.set(id, blob);
-      
-      const totalTime = performance.now() - startTime;
-      console.log('[LightboxCarousel] Got blob:', blob.size, 'bytes', `(${totalTime.toFixed(2)}ms)`);
-      return blob;
-    } catch (err) {
-      console.error('[LightboxCarousel] Failed to load blob:', id, err);
-      throw err;
-    }
-  }, []);
-
   const { url, loading, error } = useObjectUrl(
     async () => {
       if (!current) return null;
-      return getBlobWithCache(current.id);
+      try {
+        console.log('[LightboxCarousel] Loading blob for:', current.id);
+        const blob = await getMediaBlob(current.id);
+        console.log('[LightboxCarousel] Got blob:', blob.size, 'bytes');
+        return blob;
+      } catch (err) {
+        console.error('[LightboxCarousel] Failed to load blob:', current.id, err);
+        throw err;
+      }
     },
-    [current?.id, getBlobWithCache]
+    [current?.id]
   );
 
   // Reset zoom and info when changing images
@@ -91,53 +65,6 @@ export default function LightboxCarousel({
     setShowInfo(false);
     setImageLoaded(false);
   }, [current?.id]);
-
-  // Preload adjacent images for smooth navigation
-  useEffect(() => {
-    if (!items.length || index < 0) return;
-    
-    const preloadImage = async (itemIndex: number) => {
-      if (itemIndex < 0 || itemIndex >= items.length) return;
-      
-      const item = items[itemIndex];
-      if (!item || preloadedUrlsRef.current.has(item.id)) return;
-      
-      try {
-        const blob = await getBlobWithCache(item.id);
-        if (blob) {
-          const objectUrl = URL.createObjectURL(blob);
-          preloadedUrlsRef.current.set(item.id, objectUrl);
-          console.log('[LightboxCarousel] Preloaded image:', item.id);
-        }
-      } catch (err) {
-        console.warn('[LightboxCarousel] Failed to preload:', item.id, err);
-      }
-    };
-
-    // Preload current image and adjacent ones
-    preloadImage(index - 1); // Previous
-    preloadImage(index + 1); // Next
-    
-    // Cleanup old preloaded URLs that are no longer needed (keep a buffer of 5)
-    const keepIds = new Set();
-    for (let i = Math.max(0, index - 2); i <= Math.min(items.length - 1, index + 2); i++) {
-      if (items[i]) keepIds.add(items[i].id);
-    }
-    
-    // Only cleanup URLs if there are actually entries to remove
-    const currentUrls = preloadedUrlsRef.current;
-    const toRemove: string[] = [];
-    for (const [id, url] of currentUrls.entries()) {
-      if (!keepIds.has(id)) {
-        toRemove.push(id);
-        URL.revokeObjectURL(url);
-        console.log('[LightboxCarousel] Cleaned up preloaded URL for:', id);
-      }
-    }
-    
-    // Remove URLs that are no longer needed
-    toRemove.forEach(id => currentUrls.delete(id));
-  }, [index, items, getBlobWithCache]);
 
   // Keyboard navigation
   useEffect(() => {
