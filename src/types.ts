@@ -16,6 +16,9 @@ export interface Lot {
   sharedAt?: string; // ISO timestamp when locally shared (ZIP)
   syncedAt?: string; // ISO timestamp when synced to cloud
   description?: string; // Optional description field for lot details
+  descriptionSource?: 'photos' | 'photos+voice';
+  voiceTranscript?: string;
+  descriptionUpdatedAt?: string;
 }
 
 export interface MediaItem {
