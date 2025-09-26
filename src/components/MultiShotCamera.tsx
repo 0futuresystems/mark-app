@@ -104,6 +104,60 @@ export default function MultiShotCamera({
     };
   }, [usingEnv, env.canUseCamera]);
 
+  // Visual viewport handling for mobile browser UI
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      if (typeof window !== 'undefined') {
+        let height = window.innerHeight;
+        let bottomOffset = 24;
+        
+        // Use visual viewport if available for more accurate mobile behavior
+        if (window.visualViewport) {
+          height = window.visualViewport.height;
+          // Add extra offset when browser UI might be present
+          const heightDiff = window.innerHeight - window.visualViewport.height;
+          if (heightDiff > 0) {
+            bottomOffset = Math.max(24, heightDiff + 12);
+          }
+        }
+        
+        // Set CSS custom properties for viewport handling
+        document.documentElement.style.setProperty('--cam-viewport-height', `${height}px`);
+        document.documentElement.style.setProperty('--cam-bottom-offset', `${bottomOffset}px`);
+        document.documentElement.style.setProperty('--cam-min-bottom-height', `${Math.max(120, bottomOffset * 2)}px`);
+      }
+    };
+
+    // Initial setup
+    updateViewportHeight();
+
+    // Listen for viewport changes (orientation, browser UI, etc.)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportHeight);
+      window.visualViewport.addEventListener('scroll', updateViewportHeight);
+    }
+    
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', () => {
+      // Delay update to account for orientation change animation
+      setTimeout(updateViewportHeight, 100);
+    });
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportHeight);
+        window.visualViewport.removeEventListener('scroll', updateViewportHeight);
+      }
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      
+      // Clean up CSS custom properties
+      document.documentElement.style.removeProperty('--cam-viewport-height');
+      document.documentElement.style.removeProperty('--cam-bottom-offset');
+      document.documentElement.style.removeProperty('--cam-min-bottom-height');
+    };
+  }, []);
+
   async function openVideoStream(): Promise<MediaStream> {
     const facingMode = usingEnv ? 'environment' : 'user';
     

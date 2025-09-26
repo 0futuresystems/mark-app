@@ -7,10 +7,19 @@
   --thumb-size: 44px;
 }
 .iosCam__overlay {
-  position: fixed; inset: 0; z-index: 60;
-  display: flex; flex-direction: column;
+  position: fixed; 
+  top: 0; 
+  left: 0; 
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex; 
+  flex-direction: column;
   background: #000; /* full black behind video */
   touch-action: none;
+  /* Use visual viewport height to avoid mobile browser UI overlap */
+  height: var(--cam-viewport-height, 100dvh);
+  min-height: var(--cam-viewport-height, 100svh);
 }
 .iosCam__videoWrap {
   position: relative; flex: 1; overflow: hidden; background: #000;
@@ -35,10 +44,10 @@
 }
 .iosCam__topBar { padding-top: calc(env(safe-area-inset-top) + 8px); }
 .iosCam__bottomBar { 
-  padding: 20px 20px calc(env(safe-area-inset-bottom) + 24px) 20px;
+  padding: 20px 20px max(env(safe-area-inset-bottom, 24px), var(--cam-bottom-offset, 24px)) 20px;
   justify-content: center;
   position: relative;
-  min-height: 120px;
+  min-height: max(120px, var(--cam-min-bottom-height, 120px));
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
