@@ -2,7 +2,7 @@
 :root {
   --bar-bg: rgba(0,0,0,.34);
   --bar-fg: #fff;
-  --ring-size: 78px;
+  --ring-size: clamp(64px, 18vw, 82px);
   --ring-border: 4px;
   --thumb-size: 44px;
 }
@@ -34,10 +34,13 @@
   backdrop-filter: blur(20px);
 }
 .iosCam__topBar { padding-top: calc(env(safe-area-inset-top) + 8px); }
-.iosCam__bottomBar { 
-  padding-bottom: calc(env(safe-area-inset-bottom) + 16px); 
+.iosCam__bottomBar {
+  padding-top: 20px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 28px);
   justify-content: center;
   position: relative;
+  align-items: center;
+  min-height: calc(var(--ring-size) + 40px);
 }
 .iosCam__btn {
   display: inline-flex; align-items: center; gap: 8px;
