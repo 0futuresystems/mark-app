@@ -10,12 +10,62 @@ export default function TestSetupPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [result, setResult] = useState<string>('');
 
+  // Helper function to create test image blobs
+  const createTestImageBlob = async (width: number, height: number, color: string, text: string, format: 'jpeg' | 'png' = 'jpeg'): Promise<Blob> => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+    
+    // Fill background
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Add text
+    ctx.fillStyle = 'white';
+    ctx.font = `${Math.floor(height * 0.1)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, width / 2, height / 2);
+    
+    // Add border
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, width - 4, height - 4);
+    
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve(blob!);
+      }, format === 'jpeg' ? 'image/jpeg' : 'image/png', 0.9);
+    });
+  };
+
+  // Helper function to create HEIC-like blob (simulate non-web format)
+  const createHEICLikeBlob = async (width: number, height: number, text: string): Promise<Blob> => {
+    // Create a blob with HEIC-like header to simulate iPhone HEIC files
+    const header = new Uint8Array([
+      0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, // ftypheic
+      0x68, 0x65, 0x69, 0x63, 0x00, 0x00, 0x00, 0x00, // heic
+      0x6D, 0x69, 0x66, 0x31, 0x68, 0x65, 0x69, 0x63, // mif1heic
+      0x00, 0x00, 0x00, 0x00 // padding
+    ]);
+    
+    // Add some dummy data to make it substantial
+    const dummyData = new Uint8Array(5000).fill(0xFF);
+    
+    const combined = new Uint8Array(header.length + dummyData.length);
+    combined.set(header, 0);
+    combined.set(dummyData, header.length);
+    
+    return new Blob([combined], { type: 'image/heic' });
+  };
+
   const createTestData = async () => {
     setIsCreating(true);
     setResult('');
     
     try {
-      console.log('Creating test data for bug sweep...');
+      console.log('Creating test data with REAL IMAGE BLOBS for testing...');
       
       // Clear existing data first
       await db.lots.clear();
@@ -42,8 +92,15 @@ export default function TestSetupPage() {
       await db.auctions.add(auctionB);
       console.log('Created Auction B:', auctionB.id);
       
-      // Create 3 lots for Auction A with minimal media (1 photo + 1 main voice each)
-      for (let i = 1; i <= 3; i++) {
+      // Create different test scenarios for Auction A
+      const testScenarios = [
+        { format: 'jpeg', color: '#3B82F6', text: 'JPEG Test' },
+        { format: 'png', color: '#10B981', text: 'PNG Test' },
+        { format: 'heic', color: '#F59E0B', text: 'HEIC Test' }
+      ] as const;
+      
+      for (let i = 0; i < testScenarios.length; i++) {
+        const scenario = testScenarios[i];
         const lotNumber = await nextLotNumber(auctionA.id);
         const lot: Lot = {
           id: uid(),
@@ -54,33 +111,55 @@ export default function TestSetupPage() {
         };
         await db.lots.add(lot);
         
-        // Add 1 photo
-        const photoMedia: MediaItem = {
-          id: uid(),
-          lotId: lot.id,
-          type: 'photo',
-          index: 1,
-          createdAt: new Date(),
-          uploaded: false,
-          mime: 'image/jpeg',
-          bytesSize: 0
-        };
-        await db.media.add(photoMedia);
+        // Create multiple photos for each lot to test lightbox navigation
+        for (let photoIndex = 1; photoIndex <= 3; photoIndex++) {
+          const photoMediaId = uid();
+          let blob: Blob;
+          let mimeType: string;
+          
+          if (scenario.format === 'heic') {
+            blob = await createHEICLikeBlob(800, 600, `${scenario.text} #${photoIndex}`);
+            mimeType = 'image/heic';
+          } else {
+            blob = await createTestImageBlob(800, 600, scenario.color, `${scenario.text} #${photoIndex}`, scenario.format);
+            mimeType = scenario.format === 'jpeg' ? 'image/jpeg' : 'image/png';
+          }
+          
+          console.log(`[DEBUG_IMAGES] Created ${scenario.format} blob:`, {
+            mediaId: photoMediaId,
+            size: blob.size,
+            type: blob.type,
+            mimeType: mimeType
+          });
+          
+          // Save the actual blob data
+          await db.blobs.put({
+            id: photoMediaId,
+            data: blob
+          });
+          
+          // Create MediaItem record with correct size
+          const photoMedia: MediaItem = {
+            id: photoMediaId,
+            lotId: lot.id,
+            type: 'photo',
+            index: photoIndex,
+            createdAt: new Date(),
+            uploaded: false,
+            mime: mimeType,
+            bytesSize: blob.size
+          };
+          await db.media.add(photoMedia);
+          
+          console.log(`[DEBUG_IMAGES] Created photo ${photoIndex} for Lot ${lotNumber}:`, {
+            id: photoMediaId,
+            format: scenario.format,
+            size: blob.size,
+            mime: mimeType
+          });
+        }
         
-        // Add 1 main voice
-        const voiceMedia: MediaItem = {
-          id: uid(),
-          lotId: lot.id,
-          type: 'mainVoice',
-          index: 1,
-          createdAt: new Date(),
-          uploaded: false,
-          mime: 'audio/webm',
-          bytesSize: 0
-        };
-        await db.media.add(voiceMedia);
-        
-        console.log(`Created Lot ${lotNumber} for Auction A with minimal media`);
+        console.log(`Created Lot ${lotNumber} with 3 ${scenario.format.toUpperCase()} photos`);
       }
       
       // Create 1 incomplete lot for Auction B (no media - should be cleaned up on exit)
@@ -95,15 +174,24 @@ export default function TestSetupPage() {
       await db.lots.add(incompleteLot);
       console.log(`Created incomplete Lot ${incompleteLotNumber} for Auction B (no media)`);
       
-      const successMessage = `Test data creation completed!
-Auction A: ${auctionA.id} with 3 complete lots
-Auction B: ${auctionB.id} with 1 incomplete lot
+      const successMessage = `✅ Test data creation with REAL IMAGE BLOBS completed!
 
-You can now:
-1. Go to /new to test lot creation
-2. Go to /review to test review functionality  
-3. Go to /send to test CSV generation
-4. Check /debug to see all data`;
+🔹 Auction A: ${auctionA.id} with 3 lots:
+  • Lot 0001: 3 JPEG photos (blue)
+  • Lot 0002: 3 PNG photos (green) 
+  • Lot 0003: 3 HEIC photos (orange) - tests format conversion
+🔹 Auction B: ${auctionB.id} with 1 incomplete lot (no media)
+
+Test scenarios created:
+✓ JPEG images (web-friendly format)
+✓ PNG images (web-friendly format)  
+✓ HEIC images (should show issues then get fixed)
+
+Now test:
+1. Go to /review to see thumbnail rendering
+2. Click photos to test lightbox navigation
+3. Check console for [DEBUG_IMAGES] logs
+4. Verify HEIC images show black tiles (proving Hypothesis A)`;
       
       setResult(successMessage);
       console.log('Test data creation completed!');
