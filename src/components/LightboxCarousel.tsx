@@ -2,7 +2,6 @@
 import { Dialog, DialogContent } from './Dialog';
 import useEmblaCarousel from 'embla-carousel-react';
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { useObjectUrl } from '../hooks/useObjectUrl';
 import { getMediaBlob } from '../lib/blobStore';
 import { X, ChevronLeft, ChevronRight, Trash2, ZoomIn, ZoomOut, RotateCw, Info, Download } from 'lucide-react';
 import { MediaItem } from '../types';
@@ -43,39 +42,74 @@ export default function LightboxCarousel({
 
   const current = items[index];
   
-  // FIX 4: Preload neighboring images for smooth navigation (FIXED MEMORY LEAK)
-  const preloadedUrlsRef = useRef<Map<string, string>>(new Map());
 
-  const { url, loading, error } = useObjectUrl(
-    async () => {
-      if (!current) return null;
+  // FIX: Use Map to store URLs for all images to prevent blank screens during navigation
+  const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
+  const [loadingStates, setLoadingStates] = useState<Map<string, boolean>>(new Map());
+  const [errorStates, setErrorStates] = useState<Map<string, string>>(new Map());
+  const loadingRef = useRef<Set<string>>(new Set());
+
+  // Load image for current item
+  useEffect(() => {
+    if (!current || imageUrls.has(current.id) || loadingRef.current.has(current.id)) return;
+
+    loadingRef.current.add(current.id);
+    setLoadingStates(prev => new Map(prev.set(current.id, true)));
+    setErrorStates(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(current.id);
+      return newMap;
+    });
+
+    const loadImage = async () => {
       try {
         console.log('[LightboxCarousel] Loading blob for:', current.id);
         const blob = await getMediaBlob(current.id);
         if (!blob) throw new Error('Blob not found');
-        console.log('[LightboxCarousel] Got blob:', blob.size, 'bytes');
-        return blob;
+        
+        const objectUrl = URL.createObjectURL(blob);
+        console.log('[LightboxCarousel] Created URL for:', current.id, objectUrl);
+        
+        setImageUrls(prev => new Map(prev.set(current.id, objectUrl)));
+        setLoadingStates(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(current.id);
+          return newMap;
+        });
       } catch (err) {
         console.error('[LightboxCarousel] Failed to load blob:', current.id, err);
-        throw err;
+        setErrorStates(prev => new Map(prev.set(current.id, err instanceof Error ? err.message : 'Load failed')));
+        setLoadingStates(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(current.id);
+          return newMap;
+        });
+      } finally {
+        loadingRef.current.delete(current.id);
       }
-    },
-    [current?.id]
-  );
+    };
 
-  // Preload next and previous images (FIXED: no memory leak)
+    loadImage();
+  }, [current?.id, imageUrls]);
+
+  const url = current ? imageUrls.get(current.id) : undefined;
+  const loading = current ? loadingStates.get(current.id) || false : false;
+  const error = current ? errorStates.get(current.id) : undefined;
+
+  // Preload adjacent images for smooth navigation
   useEffect(() => {
-    if (!open || !current) return;
+    if (!open) return;
     
     const preloadImage = async (itemId: string) => {
-      if (preloadedUrlsRef.current.has(itemId)) return; // Already preloaded
+      if (imageUrls.has(itemId) || loadingRef.current.has(itemId)) return;
       
+      loadingRef.current.add(itemId);
       try {
         console.log('[LightboxCarousel] PRELOADING image:', itemId);
         const blob = await getMediaBlob(itemId);
         if (blob) {
           const objectUrl = URL.createObjectURL(blob);
-          preloadedUrlsRef.current.set(itemId, objectUrl);
+          setImageUrls(prev => new Map(prev.set(itemId, objectUrl)));
           
           // Also preload into browser cache
           const img = new Image();
@@ -85,51 +119,52 @@ export default function LightboxCarousel({
         }
       } catch (err) {
         console.warn('[LightboxCarousel] PRELOAD FAILED:', itemId, err);
+        setErrorStates(prev => new Map(prev.set(itemId, err instanceof Error ? err.message : 'Preload failed')));
+      } finally {
+        loadingRef.current.delete(itemId);
       }
     };
 
-    // Calculate which items should be preloaded (current ± 1)
+    // Calculate which items should be preloaded (current ± 2 for better UX)
     const shouldPreload = new Set<string>();
-    const prevIndex = index - 1;
-    const nextIndex = index + 1;
-    
-    if (prevIndex >= 0 && items[prevIndex]) {
-      shouldPreload.add(items[prevIndex].id);
-    }
-    if (nextIndex < items.length && items[nextIndex]) {
-      shouldPreload.add(items[nextIndex].id);
-    }
-    
-    // Revoke URLs for items no longer adjacent (MEMORY LEAK FIX)
-    const currentUrls = preloadedUrlsRef.current;
-    for (const [itemId, url] of currentUrls.entries()) {
-      if (!shouldPreload.has(itemId)) {
-        console.log('[LightboxCarousel] REVOKING obsolete preload URL:', itemId);
-        URL.revokeObjectURL(url);
-        currentUrls.delete(itemId);
+    for (let i = Math.max(0, index - 2); i <= Math.min(items.length - 1, index + 2); i++) {
+      if (items[i]) {
+        shouldPreload.add(items[i].id);
       }
     }
     
-    // Preload new adjacent images
+    // Preload adjacent images
     shouldPreload.forEach(itemId => {
-      if (!currentUrls.has(itemId)) {
+      if (!imageUrls.has(itemId) && !loadingRef.current.has(itemId)) {
         preloadImage(itemId);
       }
     });
-    
-    // No cleanup needed here - handled by dedicated effect below
-  }, [open, current?.id, index, items]); 
+  }, [open, index, items, imageUrls]);
 
-  // Dedicated effect to cleanup URLs when modal closes (FIXES STALE CLOSURE ISSUE)
+  // Cleanup URLs when modal closes and manage memory
   useEffect(() => {
     if (!open) {
-      console.log('[LightboxCarousel] MODAL CLOSED: Revoking all preload URLs');
-      preloadedUrlsRef.current.forEach((url: string) => {
+      console.log('[LightboxCarousel] MODAL CLOSED: Cleaning up all URLs');
+      imageUrls.forEach((url: string) => {
         URL.revokeObjectURL(url);
       });
-      preloadedUrlsRef.current.clear();
+      setImageUrls(new Map());
+      setLoadingStates(new Map());
+      setErrorStates(new Map());
+      loadingRef.current.clear();
     }
-  }, [open]);
+  }, [open, imageUrls]);
+
+  // Cleanup URLs when items change or component unmounts
+  useEffect(() => {
+    return () => {
+      console.log('[LightboxCarousel] COMPONENT UNMOUNTING: Cleaning up URLs');
+      imageUrls.forEach((url: string) => {
+        URL.revokeObjectURL(url);
+      });
+      loadingRef.current.clear();
+    };
+  }, [imageUrls]);
 
   // Reset zoom and info when changing images
   useEffect(() => {
