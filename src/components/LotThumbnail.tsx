@@ -145,7 +145,7 @@ export default function LotThumbnail({
         src={imageUrl}
         alt={`Photo ${mediaItem.index}`}
         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-        onLoad={() => {
+        onLoad={(e) => {
           console.log('[LotThumbnail] IMAGE SUCCESSFULLY LOADED:', {
             mediaId: mediaItem.id,
             imageUrl,
