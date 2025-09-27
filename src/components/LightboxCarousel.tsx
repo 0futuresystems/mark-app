@@ -105,7 +105,7 @@ export default function LightboxCarousel({
     };
 
     loadImage();
-  }, [current?.id, imageUrls]);
+  }, [current?.id]);
 
 
   // Preload adjacent images for smooth navigation
@@ -151,7 +151,7 @@ export default function LightboxCarousel({
         preloadImage(itemId);
       }
     });
-  }, [open, index, items, imageUrls]);
+  }, [open, index, items]);
 
   // Cleanup URLs when modal closes and manage memory
   useEffect(() => {
@@ -166,7 +166,7 @@ export default function LightboxCarousel({
       setImageLoadedStates(new Map());
       loadingRef.current.clear();
     }
-  }, [open, imageUrls]);
+  }, [open]);
 
   // Cleanup URLs when items change or component unmounts
   useEffect(() => {
@@ -177,7 +177,7 @@ export default function LightboxCarousel({
       });
       loadingRef.current.clear();
     };
-  }, [imageUrls]);
+  }, []);
 
   // Reset zoom and info when changing images
   useEffect(() => {

@@ -24,13 +24,14 @@ export default function ReviewPage() {
   const router = useRouter();
   const { showToast } = useToast();
   
-  console.log('[ReviewPage] Component render');
   const [currentAuctionId, setCurrentAuctionId] = useState<string | null>(null);
   const [lots, setLots] = useState<Lot[]>([]);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
   const [lotMedia, setLotMedia] = useState<MediaItem[]>([]);
   const [allMedia, setAllMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  console.log('[ReviewPage] Component render - selectedLot:', selectedLot?.id, 'loading:', loading);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [description, setDescription] = useState('');
@@ -43,7 +44,6 @@ export default function ReviewPage() {
     changeSummary: string;
     transcript: string;
   } | null>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
 
   const loadLots = useCallback(async () => {
     if (!currentAuctionId) return;
@@ -885,8 +885,20 @@ export default function ReviewPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 space-y-4 sm:space-y-0">
           <div className="flex items-center space-x-4">
             <button 
-              onClick={() => router.push('/')}
+              onClick={(e) => {
+                console.log('[ReviewPage] Big back button clicked, navigating to dashboard');
+                e.preventDefault();
+                e.stopPropagation();
+                
+                try {
+                  router.push('/dashboard');
+                  console.log('[ReviewPage] Router.push(/dashboard) called successfully');
+                } catch (error) {
+                  console.error('[ReviewPage] Error navigating to dashboard:', error);
+                }
+              }}
               className="w-12 h-12 bg-brand-panel rounded-xl flex items-center justify-center hover:bg-brand-border transition-all duration-150 transform hover:scale-105 active:scale-95 shadow-soft"
+              type="button"
             >
               <ArrowLeft className="w-6 h-6 text-brand-text" />
             </button>
@@ -979,35 +991,17 @@ export default function ReviewPage() {
               <div className="flex items-center space-x-4">
                 <button 
                   onClick={(e) => {
-                    if (isNavigating) {
-                      console.log('[ReviewPage] Back button clicked but navigation in progress, ignoring');
-                      return;
-                    }
-                    
-                    console.log('[ReviewPage] Back button clicked, clearing selectedLot');
+                    console.log('[ReviewPage] Small back button clicked, returning to lot list');
+                    console.log('[ReviewPage] Current selectedLot:', selectedLot?.id);
                     e.preventDefault();
                     e.stopPropagation();
                     
-                    setIsNavigating(true);
-                    
-                    // Reset all lot-specific state
+                    // Just clear the selected lot - should stay on /review page
                     setSelectedLot(null);
-                    setLightboxOpen(false);
-                    setDescription('');
-                    setLotMedia([]);
-                    setPreviousDescription('');
-                    setRewritePreview(null);
-                    
-                    // Reset navigation lock after a delay
-                    setTimeout(() => {
-                      setIsNavigating(false);
-                    }, 500);
+                    console.log('[ReviewPage] After setSelectedLot(null)');
                   }}
-                  className={`w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow ${
-                    isNavigating ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
                   type="button"
-                  disabled={isNavigating}
                 >
                   <ArrowLeft className="w-5 h-5 text-gray-600" />
                 </button>
