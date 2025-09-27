@@ -1,0 +1,106 @@
+Prompt for Replit Agent
+
+I’m seeing two problems in my Next.js/React PWA “Lot Logger” on the /review flow:
+
+Photo thumbnails inside a lot show up as solid black tiles.
+
+The lightbox/viewer is sluggish; sometimes the next/prev shows a white blank and the buttons become unresponsive until I tap around.
+
+Important: the list page (Review Data → list of lots) shows a small image thumbnail correctly. So something works there that’s missing on the lot detail.
+
+Please investigate and fix with minimal churn. Before coding, verify the following hypotheses and leave clear console logs so we can prove what’s happening.
+
+Repo areas to inspect
+
+src/components/LotThumbnail.tsx
+
+src/components/PhotoGrid.tsx
+
+src/components/LightboxCarousel.tsx (or the modal viewer)
+
+src/lib/media/getMediaBlob.ts (and any useObjectUrl/object-URL hook)
+
+Any capture/save pipeline that writes image blobs (camera, file picker, R2/IndexedDB)
+
+Step 1 — Reproduce & Baseline
+
+Run the app, create a lot with 2–3 photos from an iPhone (so some may be HEIC).
+
+Open /review → Lot #… and confirm: black tiles for thumbnails; lightbox sometimes blanks on next/prev.
+
+Note which browser (iOS Safari / PWA) and confirm the list card thumbnail renders fine.
+
+Deliverable: a short note confirming you reproduced both issues.
+
+Step 2 — Verify Root Causes (prove or disprove)
+Hypothesis A — HEIC / non-web decodable blobs
+
+Add temporary logging where the blob is fetched (in getMediaBlob.ts or equivalent): log mediaId, blob.type, first 12 bytes (hex), width/height if you create a bitmap, and the source (IndexedDB vs R2).
+
+Expectation: some blobs are image/heic/image/heif or application/octet-stream while the list page uses a small JPEG/HTTPS preview.
+
+If true: this explains blank/black because <img> can’t paint HEIC on the web.
+
+Hypothesis B — Object URL lifecycle
+
+Inspect any useObjectUrl hook / code. Is URL.createObjectURL() created on every render or revoked in cleanup when dependencies change?
+
+Add logs for create and revoke with the URL and component name.
+
+Expectation: URLs for thumbnails/lightbox are being revoked too early (during re-render/slide change) causing black tiles or white blanks.
+
+Hypothesis C — No preloading for lightbox neighbors
+
+Check if we preload next/prev images. If not, navigation forces a fresh blob read + decode, causing visible white screens and sluggishness.
+
+Deliverable: a short summary with logs/screens proving which of A/B/C are true.
+
+Step 3 — Implement targeted fixes (keep them small and scoped)
+
+Don’t refactor the whole app. Make surgical changes that satisfy the acceptance tests below.
+
+Fix 1: Normalize blobs to web-friendly format.
+Where we return or store image blobs (preferably at save time, or else in getMediaBlob), convert non-decodable formats (HEIC/unknown) to JPEG. Use the standard browser approach (createImageBitmap → draw to canvas → toBlob with 'image/jpeg'). Keep metadata minimal; performance over EXIF.
+
+Fix 2: Stabilize object URLs.
+Ensure each media item gets a stable object URL per screen visit. Create it once, reuse it, and revoke only on unmount of the grid or modal—not on every re-render or slide change. A tiny in-memory map {mediaId -> objectURL} is fine. Avoid revoking the previous URL while the <img> is still painting.
+
+Fix 3: Instant thumbnails.
+If we already store a list-page thumbnail/cover, reuse that for the /review tiles as a fallback while the full blob loads. If not available, generate a ~256px dataURL thumbnail at save time and store with the media record. Use it as the first paint, then swap to the full blob URL when ready.
+
+Fix 4: Lightbox preloading & responsiveness.
+Preload next and previous images when the modal opens and whenever the index changes (simple new Image().src = nextUrl). Keep navigation handlers trivial; avoid heavy synchronous work inside the button click. Add decoding="async" on <img> and ensure the container has explicit sizing.
+
+Nice-to-have (optional): If it’s a web app (not RN), consider object-fit: cover/contain, loading="lazy", and ensure containers define width/height to prevent layout jank.
+
+Step 4 — Validation / Acceptance Tests
+
+Please run these and paste the results:
+
+Thumbnails render: On /review, all tiles show an image (no black boxes) within 300ms when revisiting the page.
+
+Cross-format: Capture with iPhone (HEIC origin) and Android (JPEG). Both show correctly. Log proves HEIC was normalized to JPEG before display.
+
+Lightbox navigation: Next/Prev transitions have no white blank and button taps remain responsive for 50 rapid clicks.
+
+Memory/cleanup: After closing the modal or leaving /review, object URLs are revoked once per image. No URL churn during navigation.
+
+Bundle size & compute: No heavy deps added; canvas transcode only runs once per new image (not per render). IndexedDB writes/read times stay reasonable.
+
+Step 5 — Dev hygiene
+
+Keep logs behind a DEBUG_IMAGES flag; strip before final commit.
+
+Write a small playwright or Cypress test (optional) that opens the lightbox and clicks Next 20 times to ensure no freeze.
+
+Create a PR with a clear title: “Fix image thumbnails and lightbox: HEIC → JPEG, stable object URLs, neighbor preload.” Include a 5-line summary and screenshots.
+
+Constraints
+
+Please avoid large refactors or swapping the gallery library.
+
+Prefer zero or tiny runtime deps; use browser APIs (canvas/createImageBitmap).
+
+Keep IndexedDB schema as-is; only add a thumbnailDataUrl if trivial.
+
+If any hypothesis is false, document what you found and propose an equivalent minimal fix with the same acceptance tests.
