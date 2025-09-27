@@ -591,22 +591,69 @@ export default function ReviewPage() {
     }
     
     if (!selectedLot) return;
-    const photos = allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index);
+    const photos = lotMedia.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index);
     const currentIndex = photos.findIndex(p => p.id === mediaId);
     
-    if (currentIndex === -1) return;
+    if (currentIndex === -1 || photos.length <= 1) return;
     
-    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= photos.length) return;
+    // Calculate new index with circular movement
+    let newIndex: number;
+    if (direction === 'up') {
+      newIndex = currentIndex === 0 ? photos.length - 1 : currentIndex - 1;
+    } else {
+      newIndex = currentIndex === photos.length - 1 ? 0 : currentIndex + 1;
+    }
     
-    // Swap indices
-    const currentPhoto = photos[currentIndex];
-    const targetPhoto = photos[newIndex];
+    // Create new ordered array with the moved photo
+    const reorderedPhotos = [...photos];
+    const [movedPhoto] = reorderedPhotos.splice(currentIndex, 1);
+    reorderedPhotos.splice(newIndex, 0, movedPhoto);
     
-    await db.media.update(currentPhoto.id, { index: targetPhoto.index });
-    await db.media.update(targetPhoto.id, { index: currentPhoto.index });
+    // Normalize indices to be sequential (1, 2, 3, ...)
+    const normalizedPhotos = reorderedPhotos.map((photo, index) => ({
+      ...photo,
+      index: index + 1
+    }));
     
-    loadLotMedia(selectedLot!.id);
+    console.log('Moving photo:', {
+      from: currentIndex,
+      to: newIndex,
+      direction,
+      oldOrder: photos.map(p => ({ id: p.id, index: p.index })),
+      newOrder: normalizedPhotos.map(p => ({ id: p.id, index: p.index }))
+    });
+    
+    // Update lotMedia state
+    setLotMedia(prev => {
+      return prev.map(media => {
+        if (media.type !== 'photo') return media;
+        const updatedPhoto = normalizedPhotos.find(p => p.id === media.id);
+        return updatedPhoto || media;
+      });
+    });
+    
+    // Update allMedia state
+    setAllMedia(prev => {
+      return prev.map(media => {
+        if (media.type !== 'photo' || media.lotId !== selectedLot.id) return media;
+        const updatedPhoto = normalizedPhotos.find(p => p.id === media.id);
+        return updatedPhoto || media;
+      });
+    });
+    
+    // Update database in background
+    try {
+      const updatePromises = normalizedPhotos.map(photo => 
+        db.media.update(photo.id, { index: photo.index })
+      );
+      await Promise.all(updatePromises);
+      console.log('Photo order updated in database');
+    } catch (error) {
+      console.error('Error updating photo order:', error);
+      // Revert on database error
+      loadLotMedia(selectedLot.id);
+      showToast('Failed to reorder photos. Please try again.', 'error');
+    }
   };
 
   const deleteMedia = async (mediaId: string) => {

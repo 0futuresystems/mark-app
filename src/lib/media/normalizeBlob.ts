@@ -51,6 +51,9 @@ export async function normalizeBlob(blob: Blob, mediaId: string): Promise<Blob> 
     
     // Return as-is if already web-friendly
     if (isWebFriendly && !isHEIC) {
+      if (DEBUG_IMAGES) {
+        console.log(`[normalizeBlob] ALREADY WEB-FRIENDLY for ${mediaId}`);
+      }
       normalizedBlobCache.set(mediaId, blob);
       return blob;
     }
@@ -82,12 +85,13 @@ export async function normalizeBlob(blob: Blob, mediaId: string): Promise<Blob> 
         return convertedBlob;
       } catch (heicError) {
         console.error(`[normalizeBlob] HEIC CONVERSION FAILED for ${mediaId}:`, heicError);
-        // Fall back to createImageBitmap approach for other formats
+        console.log(`[normalizeBlob] FALLING BACK TO CANVAS for ${mediaId}`);
+        // Fall through to canvas conversion
       }
     }
     
-    // Fall back to createImageBitmap + Canvas for other non-web formats
-    if (!isWebFriendly) {
+    // Fall back to createImageBitmap + Canvas for non-web formats OR failed HEIC conversion
+    if (!isWebFriendly || isHEIC) {
       if (DEBUG_IMAGES) {
         console.log(`[normalizeBlob] FALLBACK: Using createImageBitmap for ${mediaId}`);
       }
@@ -103,9 +107,13 @@ export async function normalizeBlob(blob: Blob, mediaId: string): Promise<Blob> 
         ctx.drawImage(imageBitmap, 0, 0);
         
         // Convert to JPEG blob
-        const convertedBlob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((blob) => {
-            resolve(blob!);
+        const convertedBlob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((result) => {
+            if (result) {
+              resolve(result);
+            } else {
+              reject(new Error('Canvas toBlob failed'));
+            }
           }, 'image/jpeg', 0.9); // 90% quality
         });
         
@@ -126,18 +134,30 @@ export async function normalizeBlob(blob: Blob, mediaId: string): Promise<Blob> 
         return convertedBlob;
       } catch (canvasError) {
         console.error(`[normalizeBlob] CANVAS CONVERSION FAILED for ${mediaId}:`, canvasError);
-        // Return original blob as last resort
+        if (DEBUG_IMAGES) {
+          console.warn(`[normalizeBlob] RETURNING ORIGINAL BLOB as last resort for ${mediaId}`);
+        }
+        // Return original blob as last resort - it may still work in some browsers
+        normalizedBlobCache.set(mediaId, blob);
         return blob;
       }
     }
     
     // Cache and return original blob if no conversion needed
+    if (DEBUG_IMAGES) {
+      console.log(`[normalizeBlob] NO CONVERSION NEEDED for ${mediaId}`);
+    }
     normalizedBlobCache.set(mediaId, blob);
     return blob;
     
   } catch (error) {
     console.error(`[normalizeBlob] BLOB ANALYSIS FAILED for ${mediaId}:`, error);
-    return blob; // Return original on any error
+    if (DEBUG_IMAGES) {
+      console.warn(`[normalizeBlob] RETURNING ORIGINAL BLOB after analysis failure for ${mediaId}`);
+    }
+    // Cache and return original on any error - better than nothing
+    normalizedBlobCache.set(mediaId, blob);
+    return blob;
   }
 }
 

@@ -1,3 +1,5 @@
+'use client';
+
 import { db } from '../db';
 import { MediaItem } from '../types';
 
@@ -62,11 +64,26 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
 
     // FIX 1: Normalize blob to web-friendly format using client-side utility
     try {
-      const { normalizeBlob } = await import('./media/normalizeBlob');
-      const normalizedBlob = await normalizeBlob(finalBlob, id);
-      return normalizedBlob;
+      if (typeof window !== 'undefined') {
+        // Only attempt normalization in browser environment
+        const { normalizeBlob } = await import('./media/normalizeBlob');
+        console.log(`[blobStore] Starting normalization for ${id}`);
+        const normalizedBlob = await normalizeBlob(finalBlob, id);
+        console.log(`[blobStore] Normalization complete for ${id}:`, {
+          originalSize: finalBlob.size,
+          normalizedSize: normalizedBlob.size,
+          originalType: finalBlob.type,
+          normalizedType: normalizedBlob.type
+        });
+        return normalizedBlob;
+      } else {
+        // Server-side: return blob as-is
+        console.log(`[blobStore] Server-side: skipping normalization for ${id}`);
+        return finalBlob;
+      }
     } catch (normalizationError) {
       console.error(`[blobStore] Normalization failed for ${id}:`, normalizationError);
+      console.warn(`[blobStore] Returning original blob for ${id} after normalization failure`);
       return finalBlob; // Return original blob if normalization fails
     }
   } catch (error) {

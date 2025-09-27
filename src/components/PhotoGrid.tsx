@@ -6,6 +6,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -14,7 +15,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import {
   useSortable,
@@ -60,7 +61,7 @@ function SortablePhotoItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="relative group"
+      className="relative group flex justify-center items-center"
     >
       {/* Drag handle */}
       <div
@@ -72,23 +73,23 @@ function SortablePhotoItem({
         <GripVertical className="w-3 h-3" />
       </div>
 
-      {/* Photo thumbnail with click to view */}
+      {/* Photo thumbnail with click to view - fixed container */}
       <div 
         className="cursor-pointer transform transition-all duration-300 hover:scale-105 hover:z-10 relative"
         onClick={() => onOpenLightbox(index)}
+        style={{ width: '128px', height: '128px' }}
       >
         <LotThumbnail 
           mediaItem={photo} 
           size="large" 
-          className="w-full shadow-lg hover:shadow-xl transition-shadow duration-300" 
-          showOverlay={true}
+          className="shadow-lg hover:shadow-xl transition-shadow duration-300" 
+          showOverlay={false}
         />
-      </div>
-      
-      {/* Enhanced overlay with controls - lighten default gradient but keep full visibility on interaction */}
-      <div
-        className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent group-hover:from-black/70 group-hover:via-black/40 group-focus-within:from-black/70 group-focus-within:via-black/40 transition-all duration-300 rounded-xl flex flex-col justify-between p-2 pointer-events-none"
-      >
+        
+        {/* Enhanced overlay with controls - now properly sized */}
+        <div
+          className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent group-hover:from-black/70 group-hover:via-black/40 group-focus-within:from-black/70 group-focus-within:via-black/40 transition-all duration-300 rounded-xl flex flex-col justify-between p-2 pointer-events-none"
+        >
         {/* Top controls - restore pointer events for buttons */}
         <div className="flex justify-end space-x-1 pointer-events-auto">
           <button 
@@ -96,9 +97,9 @@ function SortablePhotoItem({
               e.stopPropagation();
               onMove(photo.id, 'up');
             }}
-            disabled={index === 0}
+            disabled={totalPhotos <= 1}
             className="p-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-110 active:scale-95"
-            title="Move up"
+            title={index === 0 ? 'Move to end' : 'Move up'}
           >
             <ChevronUp className="w-3 h-3" />
           </button>
@@ -107,9 +108,9 @@ function SortablePhotoItem({
               e.stopPropagation();
               onMove(photo.id, 'down');
             }}
-            disabled={index === totalPhotos - 1}
+            disabled={totalPhotos <= 1}
             className="p-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30 disabled:opacity-30 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-110 active:scale-95"
-            title="Move down"
+            title={index === totalPhotos - 1 ? 'Move to beginning' : 'Move down'}
           >
             <ChevronDown className="w-3 h-3" />
           </button>
@@ -144,6 +145,7 @@ function SortablePhotoItem({
             <Trash2 className="w-3 h-3" />
           </button>
         </div>
+        </div>
       </div>
       
     </div>
@@ -166,7 +168,17 @@ export default function PhotoGrid({
   onOpenLightbox 
 }: PhotoGridProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement to activate drag
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200, // 200ms hold to activate drag on touch
+        tolerance: 8, // 8px tolerance
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -197,7 +209,7 @@ export default function PhotoGrid({
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext items={photos.map(p => p.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={photos.map(p => p.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
           {photos.map((photo, index) => (
             <SortablePhotoItem

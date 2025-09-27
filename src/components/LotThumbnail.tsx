@@ -4,7 +4,7 @@
 import { MediaItem } from '../types';
 import { useState, useEffect } from 'react';
 import { ImageIcon } from 'lucide-react';
-import { db } from '../db';
+import { getMediaBlob } from '../lib/blobStore';
 
 interface LotThumbnailProps {
   mediaItem: MediaItem;
@@ -35,34 +35,18 @@ export default function LotThumbnail({
         setError(null);
         setImageLoaded(false);
         
-        // Get blob data directly from IndexedDB
-        const blobRecord = await db.blobs.get(mediaItem.id);
+        // Use blobStore getMediaBlob which includes normalization
+        const blob = await getMediaBlob(mediaItem.id);
         
-        console.log('[LotThumbnail] BLOB RECORD:', {
+        console.log('[LotThumbnail] NORMALIZED BLOB:', {
           id: mediaItem.id,
-          exists: !!blobRecord,
-          hasData: !!blobRecord?.data,
-          dataType: blobRecord?.data ? typeof blobRecord.data : 'none',
-          dataConstructor: blobRecord?.data?.constructor?.name,
-          dataSize: blobRecord?.data instanceof Blob ? blobRecord.data.size : 
-                   (blobRecord?.data as any)?.byteLength ||
-                   (blobRecord?.data as any)?.length || 'unknown'
+          exists: !!blob,
+          size: blob?.size,
+          type: blob?.type
         });
         
-        if (!blobRecord?.data) {
+        if (!blob) {
           throw new Error('No blob data found');
-        }
-
-        // Convert data to Blob with proper MIME type
-        let blob: Blob;
-        const data = blobRecord.data as any;
-        
-        if (data instanceof Blob) {
-          blob = data.type ? data : new Blob([data], { type: mediaItem.mime || 'image/jpeg' });
-        } else if (data instanceof ArrayBuffer) {
-          blob = new Blob([data], { type: mediaItem.mime || 'image/jpeg' });
-        } else {
-          throw new Error('Unsupported data format');
         }
 
         // CRITICAL VALIDATION: Check if blob contains valid image data
@@ -162,14 +146,28 @@ export default function LotThumbnail({
         alt={`Photo ${mediaItem.index}`}
         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
         onLoad={() => {
-          console.log('[LotThumbnail] IMAGE SUCCESSFULLY LOADED:', mediaItem.id, imageUrl);
+          console.log('[LotThumbnail] IMAGE SUCCESSFULLY LOADED:', {
+            mediaId: mediaItem.id,
+            imageUrl,
+            naturalWidth: (e.target as HTMLImageElement).naturalWidth,
+            naturalHeight: (e.target as HTMLImageElement).naturalHeight,
+            displayWidth: (e.target as HTMLImageElement).offsetWidth,
+            displayHeight: (e.target as HTMLImageElement).offsetHeight
+          });
           setImageLoaded(true);
         }}
         onError={(e) => {
-          console.error('[LotThumbnail] IMAGE LOAD FAILED:', mediaItem.id, imageUrl, e);
+          console.error('[LotThumbnail] IMAGE LOAD FAILED:', {
+            mediaId: mediaItem.id,
+            imageUrl,
+            error: e,
+            naturalWidth: (e.target as HTMLImageElement).naturalWidth,
+            naturalHeight: (e.target as HTMLImageElement).naturalHeight
+          });
           setError('Image load failed');
         }}
         loading="lazy"
+        decoding="async"
       />
       
       {showOverlay && (

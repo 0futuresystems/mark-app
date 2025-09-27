@@ -42,12 +42,16 @@
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
 }
-.iosCam__topBar { padding-top: calc(env(safe-area-inset-top) + 8px); }
+.iosCam__topBar { 
+  padding-top: calc(env(safe-area-inset-top) + 8px);
+  padding-left: calc(env(safe-area-inset-left) + 20px);
+  padding-right: calc(env(safe-area-inset-right) + 20px);
+}
 .iosCam__bottomBar { 
-  padding: 20px 20px max(env(safe-area-inset-bottom, 24px), var(--cam-bottom-offset, 24px)) 20px;
+  padding: 20px calc(env(safe-area-inset-right) + 20px) max(env(safe-area-inset-bottom, 34px), var(--cam-bottom-offset, 34px)) calc(env(safe-area-inset-left) + 20px);
   justify-content: center;
   position: relative;
-  min-height: max(120px, var(--cam-min-bottom-height, 120px));
+  min-height: max(140px, var(--cam-min-bottom-height, 140px));
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -94,6 +98,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  padding-left: 8px; /* Extra spacing to prevent edge clipping */
 }
 
 .iosCam__centerControls {
@@ -106,6 +111,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  padding-right: 8px; /* Extra spacing to prevent edge clipping */
 }
 
 .iosCam__thumb {
@@ -192,8 +198,8 @@
 
 .iosCam__zoomIndicator {
   position: absolute;
-  top: 24px;
-  right: 24px;
+  top: calc(env(safe-area-inset-top) + 24px);
+  right: calc(env(safe-area-inset-right) + 24px);
   background: rgba(0, 0, 0, 0.7);
   color: white;
   padding: 8px 12px;
