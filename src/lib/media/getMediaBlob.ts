@@ -83,24 +83,29 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
     throw new Error(`Invalid blob data type for ID: ${mediaId}`);
   }
 
-  // CRITICAL: Validate blob data integrity (from ChatGPT's suggestion)
+  // CRITICAL: Validate blob data integrity and normalize to web-friendly format
   try {
     const arrayBuffer = await finalBlob.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     const header = Array.from(uint8Array.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ');
     
-    const isValidImage = 
+    const isWebFriendly = 
       header.startsWith('ff d8') || // JPEG
       header.startsWith('89 50 4e 47') || // PNG  
-      header.startsWith('47 49 46 38') || // GIF
-      arrayBuffer.byteLength > 0; // At least has some data
+      header.startsWith('47 49 46 38'); // GIF
       
+    const isHEIC = 
+      finalBlob.type === 'image/heic' || 
+      finalBlob.type === 'image/heif' ||
+      header.includes('66 74 79 70 68 65 69 63'); // 'ftypheic' HEIC signature
+    
     console.log('[getMediaBlob] BLOB VALIDATION:', {
       mediaId,
       size: finalBlob.size,
       type: finalBlob.type,
       headerBytes: header,
-      isValidImage,
+      isWebFriendly,
+      isHEIC,
       isJPEG: header.startsWith('ff d8'),
       isPNG: header.startsWith('89 50 4e 47'),
       isGIF: header.startsWith('47 49 46 38'),
@@ -111,8 +116,15 @@ async function readMediaFromIndexedDB(mediaId: string): Promise<Blob> {
       throw new Error(`Blob contains no data for ID: ${mediaId}`);
     }
     
-    if (!isValidImage) {
-      console.warn(`[getMediaBlob] WARNING: Blob may not be valid image data for ID: ${mediaId}`);
+    // Note: Format conversion is handled client-side in blobStore.ts
+    // This server-side function returns raw blobs for export/email flows
+    if (!isWebFriendly || isHEIC) {
+      console.warn(`[getMediaBlob] NON-WEB-FRIENDLY FORMAT detected for ${mediaId}:`, {
+        type: finalBlob.type,
+        size: finalBlob.size,
+        isHEIC,
+        note: 'Client-side conversion will be applied when displayed'
+      });
     }
     
     return finalBlob;

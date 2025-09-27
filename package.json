@@ -27,6 +27,7 @@
     "dexie": "^4.2.0",
     "embla-carousel-react": "^8.6.0",
     "file-saver": "^2.0.5",
+    "heic2any": "^0.0.4",
     "jszip": "^3.10.1",
     "lucide-react": "^0.542.0",
     "next": "15.5.2",

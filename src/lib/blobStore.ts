@@ -33,18 +33,15 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
     // Get the correct MIME type from the media record
     const correctMimeType = mediaRecord?.mime || 'image/jpeg';
     
-    // Return the blob data with correct MIME type
+    // Convert data to proper blob format
     const data = blobRecord.data as any;
+    let finalBlob: Blob;
     
     if (data instanceof Blob) {
-      // If blob already has correct type, return as-is
-      if (data.type === correctMimeType) {
-        return data;
-      }
-      // Fix MIME type using slice to preserve data integrity
-      return data.slice(0, data.size, correctMimeType);
+      // If blob already has correct type, use as-is, otherwise fix MIME type
+      finalBlob = data.type === correctMimeType ? data : data.slice(0, data.size, correctMimeType);
     } else if (data instanceof ArrayBuffer) {
-      return new Blob([data], { type: correctMimeType });
+      finalBlob = new Blob([data], { type: correctMimeType });
     } else if (typeof data === 'string') {
       // Handle base64 strings
       try {
@@ -53,7 +50,7 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-        return new Blob([bytes], { type: correctMimeType });
+        finalBlob = new Blob([bytes], { type: correctMimeType });
       } catch (error) {
         console.error(`Failed to decode base64 for ${id}:`, error);
         return null;
@@ -61,6 +58,16 @@ export async function getMediaBlob(id: string): Promise<Blob | null> {
     } else {
       console.error(`Unexpected blob data type for ID: ${id}`, typeof data, data);
       return null;
+    }
+
+    // FIX 1: Normalize blob to web-friendly format using client-side utility
+    try {
+      const { normalizeBlob } = await import('./media/normalizeBlob');
+      const normalizedBlob = await normalizeBlob(finalBlob, id);
+      return normalizedBlob;
+    } catch (normalizationError) {
+      console.error(`[blobStore] Normalization failed for ${id}:`, normalizationError);
+      return finalBlob; // Return original blob if normalization fails
     }
   } catch (error) {
     console.error(`Error retrieving blob for ID: ${id}`, error);

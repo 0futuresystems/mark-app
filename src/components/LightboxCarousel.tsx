@@ -1,7 +1,7 @@
 'use client';
 import { Dialog, DialogContent } from './Dialog';
 import useEmblaCarousel from 'embla-carousel-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useObjectUrl } from '../hooks/useObjectUrl';
 import { getMediaBlob } from '../lib/blobStore';
 import { X, ChevronLeft, ChevronRight, Trash2, ZoomIn, ZoomOut, RotateCw, Info, Download } from 'lucide-react';
@@ -42,6 +42,9 @@ export default function LightboxCarousel({
   }, [embla]);
 
   const current = items[index];
+  
+  // FIX 4: Preload neighboring images for smooth navigation (FIXED MEMORY LEAK)
+  const preloadedUrlsRef = useRef<Map<string, string>>(new Map());
 
   const { url, loading, error } = useObjectUrl(
     async () => {
@@ -59,6 +62,74 @@ export default function LightboxCarousel({
     },
     [current?.id]
   );
+
+  // Preload next and previous images (FIXED: no memory leak)
+  useEffect(() => {
+    if (!open || !current) return;
+    
+    const preloadImage = async (itemId: string) => {
+      if (preloadedUrlsRef.current.has(itemId)) return; // Already preloaded
+      
+      try {
+        console.log('[LightboxCarousel] PRELOADING image:', itemId);
+        const blob = await getMediaBlob(itemId);
+        if (blob) {
+          const objectUrl = URL.createObjectURL(blob);
+          preloadedUrlsRef.current.set(itemId, objectUrl);
+          
+          // Also preload into browser cache
+          const img = new Image();
+          img.src = objectUrl;
+          
+          console.log('[LightboxCarousel] PRELOAD SUCCESS:', itemId, objectUrl);
+        }
+      } catch (err) {
+        console.warn('[LightboxCarousel] PRELOAD FAILED:', itemId, err);
+      }
+    };
+
+    // Calculate which items should be preloaded (current ± 1)
+    const shouldPreload = new Set<string>();
+    const prevIndex = index - 1;
+    const nextIndex = index + 1;
+    
+    if (prevIndex >= 0 && items[prevIndex]) {
+      shouldPreload.add(items[prevIndex].id);
+    }
+    if (nextIndex < items.length && items[nextIndex]) {
+      shouldPreload.add(items[nextIndex].id);
+    }
+    
+    // Revoke URLs for items no longer adjacent (MEMORY LEAK FIX)
+    const currentUrls = preloadedUrlsRef.current;
+    for (const [itemId, url] of currentUrls.entries()) {
+      if (!shouldPreload.has(itemId)) {
+        console.log('[LightboxCarousel] REVOKING obsolete preload URL:', itemId);
+        URL.revokeObjectURL(url);
+        currentUrls.delete(itemId);
+      }
+    }
+    
+    // Preload new adjacent images
+    shouldPreload.forEach(itemId => {
+      if (!currentUrls.has(itemId)) {
+        preloadImage(itemId);
+      }
+    });
+    
+    // No cleanup needed here - handled by dedicated effect below
+  }, [open, current?.id, index, items]); 
+
+  // Dedicated effect to cleanup URLs when modal closes (FIXES STALE CLOSURE ISSUE)
+  useEffect(() => {
+    if (!open) {
+      console.log('[LightboxCarousel] MODAL CLOSED: Revoking all preload URLs');
+      preloadedUrlsRef.current.forEach((url: string) => {
+        URL.revokeObjectURL(url);
+      });
+      preloadedUrlsRef.current.clear();
+    }
+  }, [open]);
 
   // Reset zoom and info when changing images
   useEffect(() => {
@@ -240,9 +311,21 @@ export default function LightboxCarousel({
                         className="max-w-full max-h-full object-contain transition-all duration-300 cursor-zoom-in"
                         style={{ 
                           transform: `scale(${zoom})`,
-                          imageRendering: zoom > 1 ? 'crisp-edges' : 'auto'
+                          imageRendering: zoom > 1 ? 'crisp-edges' : 'auto',
+                          width: 'auto',
+                          height: 'auto',
+                          maxWidth: '100%',
+                          maxHeight: '100%'
                         }}
-                        onLoad={() => setImageLoaded(true)}
+                        decoding="async"
+                        loading="eager"
+                        onLoad={() => {
+                          console.log('[LightboxCarousel] IMAGE LOADED successfully for:', current?.id);
+                          setImageLoaded(true);
+                        }}
+                        onError={(e) => {
+                          console.error('[LightboxCarousel] IMAGE LOAD ERROR for:', current?.id, e);
+                        }}
                         onClick={() => {
                           if (zoom === 1) {
                             setZoom(2);
