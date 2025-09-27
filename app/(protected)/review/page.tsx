@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { db } from '../../../src/db';
 import { Lot, MediaItem } from '../../../src/types';
 import { uid } from '../../../src/lib/id';
@@ -23,6 +23,8 @@ import { QueuedRewriteJob } from '../../../src/types';
 export default function ReviewPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  
+  console.log('[ReviewPage] Component render');
   const [currentAuctionId, setCurrentAuctionId] = useState<string | null>(null);
   const [lots, setLots] = useState<Lot[]>([]);
   const [selectedLot, setSelectedLot] = useState<Lot | null>(null);
@@ -41,6 +43,7 @@ export default function ReviewPage() {
     changeSummary: string;
     transcript: string;
   } | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const loadLots = useCallback(async () => {
     if (!currentAuctionId) return;
@@ -489,23 +492,29 @@ export default function ReviewPage() {
     }
   }, [selectedLot]);
 
-  // Helper functions for completeness checking
-  const getLotMedia = (lotId: string) => {
+  // Helper functions for completeness checking (memoized)
+  const getLotMedia = useCallback((lotId: string) => {
     return allMedia.filter(m => m.lotId === lotId);
-  };
+  }, [allMedia]);
 
-  const isLotComplete = (lotId: string) => {
+  const isLotComplete = useCallback((lotId: string) => {
     const media = getLotMedia(lotId);
     const photoCount = media.filter(m => m.type === 'photo').length;
     const hasMainVoice = media.some(m => m.type === 'mainVoice');
     return photoCount >= 1 && hasMainVoice;
-  };
+  }, [getLotMedia]);
 
-  const getFirstPhoto = (lotId: string) => {
+  const getFirstPhoto = useCallback((lotId: string) => {
     const media = getLotMedia(lotId);
     const photos = media.filter(m => m.type === 'photo').sort((a, b) => a.index - b.index);
     return photos.length > 0 ? photos[0] : null;
-  };
+  }, [getLotMedia]);
+
+  // Memoize filtered photos for selected lot
+  const selectedLotPhotos = useMemo(() => {
+    if (!selectedLot) return [];
+    return allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index);
+  }, [selectedLot, allMedia]);
 
 
 
@@ -969,8 +978,36 @@ export default function ReviewPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 space-y-4 sm:space-y-0">
               <div className="flex items-center space-x-4">
                 <button 
-                  onClick={() => setSelectedLot(null)}
-                  className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                  onClick={(e) => {
+                    if (isNavigating) {
+                      console.log('[ReviewPage] Back button clicked but navigation in progress, ignoring');
+                      return;
+                    }
+                    
+                    console.log('[ReviewPage] Back button clicked, clearing selectedLot');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    setIsNavigating(true);
+                    
+                    // Reset all lot-specific state
+                    setSelectedLot(null);
+                    setLightboxOpen(false);
+                    setDescription('');
+                    setLotMedia([]);
+                    setPreviousDescription('');
+                    setRewritePreview(null);
+                    
+                    // Reset navigation lock after a delay
+                    setTimeout(() => {
+                      setIsNavigating(false);
+                    }, 500);
+                  }}
+                  className={`w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 hover:shadow-md transition-shadow ${
+                    isNavigating ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  type="button"
+                  disabled={isNavigating}
                 >
                   <ArrowLeft className="w-5 h-5 text-gray-600" />
                 </button>
@@ -996,7 +1033,7 @@ export default function ReviewPage() {
               </div>
               
               <PhotoGrid
-                photos={allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index)}
+                photos={selectedLotPhotos}
                 onReorder={handlePhotoReorder}
                 onDelete={handlePhotoDelete}
                 onMove={movePhoto}
@@ -1170,7 +1207,7 @@ export default function ReviewPage() {
           <LightboxCarousel
             open={lightboxOpen}
             onOpenChange={setLightboxOpen}
-            items={allMedia.filter(m => m.lotId === selectedLot.id && m.type === 'photo').sort((a, b) => a.index - b.index)}
+            items={selectedLotPhotos}
             startIndex={lightboxIndex}
             onDelete={handlePhotoDelete}
           />
