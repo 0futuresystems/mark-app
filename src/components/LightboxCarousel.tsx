@@ -21,19 +21,34 @@ export default function LightboxCarousel({
   startIndex?: number;
   onDelete?: (id: string) => Promise<void>;
 }) {
+  console.log('[LightboxCarousel] Component render - open:', open, 'items:', items.length, 'startIndex:', startIndex);
+  
   const [emblaRef, embla] = useEmblaCarousel({ startIndex, loop: false });
   const [index, setIndex] = useState(startIndex);
   const [zoom, setZoom] = useState(1);
   const [showInfo, setShowInfo] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageLoadedStates, setImageLoadedStates] = useState<Map<string, boolean>>(new Map());
 
+  // Initialize Embla with proper settings
   useEffect(() => {
-    if (embla) embla.reInit({ startIndex });
+    if (!embla) return;
+    
+    console.log('[LightboxCarousel] Initializing Embla with startIndex:', startIndex);
+    embla.reInit({ startIndex, loop: false, skipSnaps: false });
+    
+    // Scroll to start index
+    embla.scrollTo(startIndex, true); // true = immediate, no animation
   }, [embla, startIndex]);
 
   useEffect(() => {
     if (!embla) return;
-    const handler = () => setIndex(embla.selectedScrollSnap());
+    
+    const handler = () => {
+      const newIndex = embla.selectedScrollSnap();
+      console.log('[LightboxCarousel] Embla select event - new index:', newIndex);
+      setIndex(newIndex);
+    };
+    
     embla.on('select', handler);
     return () => {
       embla.off('select', handler);
@@ -92,9 +107,6 @@ export default function LightboxCarousel({
     loadImage();
   }, [current?.id, imageUrls]);
 
-  const url = current ? imageUrls.get(current.id) : undefined;
-  const loading = current ? loadingStates.get(current.id) || false : false;
-  const error = current ? errorStates.get(current.id) : undefined;
 
   // Preload adjacent images for smooth navigation
   useEffect(() => {
@@ -151,6 +163,7 @@ export default function LightboxCarousel({
       setImageUrls(new Map());
       setLoadingStates(new Map());
       setErrorStates(new Map());
+      setImageLoadedStates(new Map());
       loadingRef.current.clear();
     }
   }, [open, imageUrls]);
@@ -170,7 +183,6 @@ export default function LightboxCarousel({
   useEffect(() => {
     setZoom(1);
     setShowInfo(false);
-    setImageLoaded(false);
   }, [current?.id]);
 
   // Keyboard navigation
@@ -180,10 +192,16 @@ export default function LightboxCarousel({
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case 'ArrowLeft':
-          embla?.scrollPrev();
+          console.log('[LightboxCarousel] ArrowLeft pressed, current index:', index);
+          if (embla && embla.canScrollPrev()) {
+            embla.scrollPrev();
+          }
           break;
         case 'ArrowRight':
-          embla?.scrollNext();
+          console.log('[LightboxCarousel] ArrowRight pressed, current index:', index);
+          if (embla && embla.canScrollNext()) {
+            embla.scrollNext();
+          }
           break;
         case 'Escape':
           onOpenChange(false);
@@ -213,9 +231,12 @@ export default function LightboxCarousel({
   const handleZoomReset = () => setZoom(1);
   
   const handleDownload = useCallback(async () => {
-    if (!url || !current) return;
+    if (!current) return;
+    const currentUrl = imageUrls.get(current.id);
+    if (!currentUrl) return;
+    
     try {
-      const response = await fetch(url);
+      const response = await fetch(currentUrl);
       const blob = await response.blob();
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -228,7 +249,7 @@ export default function LightboxCarousel({
     } catch (error) {
       console.error('Download failed:', error);
     }
-  }, [url, current, index]);
+  }, [imageUrls, current, index]);
 
   const doDelete = useCallback(async () => {
     if (!current || !onDelete) return;
@@ -298,16 +319,30 @@ export default function LightboxCarousel({
             <button
               aria-label="Previous image"
               className="absolute left-4 top-1/2 -translate-y-1/2 z-15 w-14 h-14 bg-black/60 hover:bg-black/80 backdrop-blur-sm text-white rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 disabled:opacity-30 disabled:cursor-not-allowed"
-              onClick={() => embla?.scrollPrev()}
-              disabled={index === 0}
+              onClick={() => {
+                console.log('[LightboxCarousel] Previous button clicked, current index:', index);
+                if (embla && embla.canScrollPrev()) {
+                  embla.scrollPrev();
+                } else {
+                  console.log('[LightboxCarousel] Cannot scroll prev - embla:', !!embla, 'canScrollPrev:', embla?.canScrollPrev());
+                }
+              }}
+              disabled={!embla || index === 0}
             >
               <ChevronLeft className="w-7 h-7" />
             </button>
             <button
               aria-label="Next image"
               className="absolute right-4 top-1/2 -translate-y-1/2 z-15 w-14 h-14 bg-black/60 hover:bg-black/80 backdrop-blur-sm text-white rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 disabled:opacity-30 disabled:cursor-not-allowed"
-              onClick={() => embla?.scrollNext()}
-              disabled={index === items.length - 1}
+              onClick={() => {
+                console.log('[LightboxCarousel] Next button clicked, current index:', index);
+                if (embla && embla.canScrollNext()) {
+                  embla.scrollNext();
+                } else {
+                  console.log('[LightboxCarousel] Cannot scroll next - embla:', !!embla, 'canScrollNext:', embla?.canScrollNext());
+                }
+              }}
+              disabled={!embla || index === items.length - 1}
             >
               <ChevronRight className="w-7 h-7" />
             </button>
@@ -315,37 +350,41 @@ export default function LightboxCarousel({
         )}
 
         {/* Image container */}
-        <div className="relative w-full h-full flex items-center justify-center pt-16 pb-16 overflow-hidden">
-          {loading && (
-            <div className="text-white text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-              <p className="text-lg">Loading image...</p>
-            </div>
-          )}
-          
-          {error && (
-            <div className="text-white text-center">
-              <div className="text-red-400 text-6xl mb-4">⚠</div>
-              <p className="text-lg">Failed to load image</p>
-              <p className="text-sm text-gray-400 mt-2">Try refreshing or check your connection</p>
-            </div>
-          )}
-          
-          {url && !error && (
-            <div 
-              className="relative max-w-full max-h-full overflow-hidden"
-              ref={emblaRef}
-            >
-              <div className="flex">
-                {items.map((item, idx) => (
-                  <div key={item.id} className="flex-[0_0_100%] min-w-0">
-                    {idx === index && (
+        <div className="relative w-full h-full pt-16 pb-16">
+          <div 
+            className="w-full h-full overflow-hidden"
+            ref={emblaRef}
+          >
+            <div className="flex h-full">
+              {items.map((item, idx) => {
+                const itemUrl = imageUrls.get(item.id);
+                const itemLoading = loadingStates.get(item.id) || false;
+                const itemError = errorStates.get(item.id);
+                
+                return (
+                  <div key={item.id} className="flex-[0_0_100%] min-w-0 h-full flex items-center justify-center relative">
+                    {itemLoading && (
+                      <div className="text-white text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                        <p className="text-lg">Loading image...</p>
+                      </div>
+                    )}
+                    
+                    {itemError && !itemLoading && (
+                      <div className="text-white text-center">
+                        <div className="text-red-400 text-6xl mb-4">⚠</div>
+                        <p className="text-lg">Failed to load image</p>
+                        <p className="text-sm text-gray-400 mt-2">{itemError}</p>
+                      </div>
+                    )}
+                    
+                    {itemUrl && !itemError && !itemLoading && (
                       <img 
-                        src={url} 
+                        src={itemUrl} 
                         alt={`Photo ${item.index || idx + 1}`}
                         className="max-w-full max-h-full object-contain transition-all duration-300 cursor-zoom-in"
                         style={{ 
-                          transform: `scale(${zoom})`,
+                          transform: idx === index ? `scale(${zoom})` : 'scale(1)',
                           imageRendering: zoom > 1 ? 'crisp-edges' : 'auto',
                           width: 'auto',
                           height: 'auto',
@@ -355,26 +394,28 @@ export default function LightboxCarousel({
                         decoding="async"
                         loading="eager"
                         onLoad={() => {
-                          console.log('[LightboxCarousel] IMAGE LOADED successfully for:', current?.id);
-                          setImageLoaded(true);
+                          console.log('[LightboxCarousel] IMAGE LOADED successfully for:', item.id);
+                          setImageLoadedStates(prev => new Map(prev.set(item.id, true)));
                         }}
                         onError={(e) => {
-                          console.error('[LightboxCarousel] IMAGE LOAD ERROR for:', current?.id, e);
+                          console.error('[LightboxCarousel] IMAGE LOAD ERROR for:', item.id, e);
                         }}
                         onClick={() => {
-                          if (zoom === 1) {
-                            setZoom(2);
-                          } else {
-                            setZoom(1);
+                          if (idx === index) {
+                            if (zoom === 1) {
+                              setZoom(2);
+                            } else {
+                              setZoom(1);
+                            }
                           }
                         }}
                       />
                     )}
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Bottom control bar */}
@@ -431,7 +472,7 @@ export default function LightboxCarousel({
         </div>
         
         {/* Info panel */}
-        {showInfo && imageLoaded && (
+        {showInfo && current && imageLoadedStates.get(current.id) && (
           <div className="absolute top-20 right-4 z-25 w-80 bg-black/80 backdrop-blur-md text-white rounded-xl p-4 border border-white/20">
             <h3 className="font-semibold text-lg mb-3">Image Details</h3>
             <div className="space-y-2 text-sm">
@@ -458,7 +499,20 @@ export default function LightboxCarousel({
         )}
         
         {/* Loading overlay */}
-        {!imageLoaded && url && !error && (
+        {(() => {
+          if (!current) return false;
+          const isLoaded = imageLoadedStates.get(current.id);
+          const isLoading = loadingStates.get(current.id);
+          const hasUrl = imageUrls.has(current.id);
+          const hasError = errorStates.has(current.id);
+          const shouldShowOverlay = !isLoaded && (isLoading || (!hasUrl && !hasError));
+          
+          console.log('[LightboxCarousel] Loading overlay check for', current.id, ':', {
+            isLoaded, isLoading, hasUrl, hasError, shouldShowOverlay
+          });
+          
+          return shouldShowOverlay;
+        })() && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
             <div className="text-white text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
