@@ -70,8 +70,8 @@ export default function NewLotPage() {
     setPreviousDescription(description);
 
     try {
-      // Get up to 2 photos and convert to base64
-      const selectedPhotos = currentPhotos.slice(0, 2);
+      // Get up to 3 photos and convert to base64 for better AI analysis
+      const selectedPhotos = currentPhotos.slice(0, 3);
       const imagePromises = selectedPhotos.map(async (photo) => {
         try {
           const blob = await getMediaBlob(photo.id);

@@ -144,8 +144,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate and process up to 2 images for cost efficiency
-    const selectedImages = images.slice(0, 2);
+    // Validate and process up to 3 images for better analysis accuracy
+    const selectedImages = images.slice(0, 3);
     const imageContents = [];
     let totalSizeKB = 0;
     let ocrText = "";
