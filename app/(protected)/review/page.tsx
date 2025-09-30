@@ -290,10 +290,13 @@ export default function ReviewPage() {
 
       const rewriteResult = await rewriteResponse.json();
 
+      // Format the rewritten description with keywords (same format as generate-description)
+      const formattedDescription = `${rewriteResult.rewrittenDescription}\n\nKeywords: ${rewriteResult.keywords}`;
+
       // Show preview modal
       setRewritePreview({
         original: description || '',
-        rewritten: rewriteResult.rewrittenDescription,
+        rewritten: formattedDescription,
         changeSummary: rewriteResult.changeSummary,
         transcript: transcript,
       });
@@ -399,11 +402,14 @@ export default function ReviewPage() {
           continue;
         }
 
-        const { rewrittenDescription, changeSummary } = await rewriteResponse.json();
+        const { rewrittenDescription, keywords, changeSummary } = await rewriteResponse.json();
+
+        // Format the rewritten description with keywords (same format as generate-description)
+        const formattedDescription = `${rewrittenDescription}\n\nKeywords: ${keywords}`;
 
         // CRITICAL FIX: Actually persist the rewritten description and metadata
         const updatedLot = {
-          description: rewrittenDescription,
+          description: formattedDescription,
           descriptionSource: 'photos+voice' as const,
           voiceTranscript: transcript,
           descriptionUpdatedAt: new Date().toISOString(),
@@ -413,13 +419,13 @@ export default function ReviewPage() {
 
         // Update local state if this is the currently selected lot
         if (selectedLot && selectedLot.id === job.lotId) {
-          setDescription(rewrittenDescription);
+          setDescription(formattedDescription);
           setPreviousDescription(job.originalDescription);
           
           // Show preview modal to let user know what happened
           setRewritePreview({
             original: job.originalDescription,
-            rewritten: rewrittenDescription,
+            rewritten: formattedDescription,
             changeSummary: `${changeSummary} (processed from queue when back online)`,
             transcript: transcript,
           });

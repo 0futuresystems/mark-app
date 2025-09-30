@@ -40,11 +40,13 @@ RULES:
 5. When the voice note conflicts with the original description, prefer the voice note
 6. If unsure about any detail, use "unknown/unspecified"
 7. Keep tone concise and objective
+8. IMPORTANT: Generate updated keywords (8-12 SEO keywords, comma-separated) that reflect the final description after incorporating voice note changes
 
 OUTPUT FORMAT:
 Respond with valid JSON only:
 {
   "rewrittenDescription": "<improved description following the format above>",
+  "keywords": "<8-12 updated SEO keywords, comma-separated, reflecting the final description>",
   "changeSummary": "<2-3 short lines explaining what was changed/added from the voice note>"
 }`;
 
@@ -84,12 +86,13 @@ Please rewrite the description incorporating details from the voice note.`;
       }
 
       // Validate the response structure
-      if (!parsedResponse.rewrittenDescription || !parsedResponse.changeSummary) {
+      if (!parsedResponse.rewrittenDescription || !parsedResponse.changeSummary || !parsedResponse.keywords) {
         throw new Error('Invalid response structure from AI');
       }
 
       return NextResponse.json({
         rewrittenDescription: parsedResponse.rewrittenDescription,
+        keywords: parsedResponse.keywords,
         changeSummary: parsedResponse.changeSummary,
       });
 
